@@ -91,6 +91,9 @@ vscode/
 *.swo
 *~
 
+# Trae IDE files
+.trae/
+
 # OS files
 .DS_Store
 Thumbs.db
