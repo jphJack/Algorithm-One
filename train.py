@@ -37,6 +37,7 @@ class Trainer:
         )
         
         self.best_acc = 0.0
+        self.best_epoch = -1  # 记录最佳模型的epoch
         self.train_losses = []
         self.train_accs = []
         self.val_accs = []
@@ -129,13 +130,15 @@ class Trainer:
         return checkpoint['epoch']
     
     def train(self, start_epoch=0):
+        total_start_time = time.time()
+        
         print(f'开始训练，设备: {self.device}')
         print(f'训练样本数: {len(self.train_loader.dataset)}')
         print(f'验证样本数: {len(self.val_loader.dataset)}')
         print('-' * 50)
         
         for epoch in range(start_epoch, config.NUM_EPOCHS):
-            start_time = time.time()
+            epoch_start_time = time.time()
             
             train_loss, train_acc = self.train_epoch(epoch)
             val_acc = self.validate()
@@ -146,7 +149,7 @@ class Trainer:
             self.train_accs.append(train_acc)
             self.val_accs.append(val_acc)
             
-            epoch_time = time.time() - start_time
+            epoch_time = time.time() - epoch_start_time
             
             print(f'\nEpoch {epoch+1}/{config.NUM_EPOCHS} - {epoch_time:.1f}s')
             print(f'  训练损失: {train_loss:.4f}, 训练准确率: {train_acc:.2f}%')
@@ -156,36 +159,51 @@ class Trainer:
             is_best = val_acc > self.best_acc
             if is_best:
                 self.best_acc = val_acc
+                self.best_epoch = epoch + 1  # 记录最佳模型的epoch（从1开始计数）
             
             if (epoch + 1) % 10 == 0 or is_best:
                 self.save_checkpoint(epoch, is_best)
         
+        total_time = time.time() - total_start_time
+        hours, rem = divmod(total_time, 3600)
+        minutes, seconds = divmod(rem, 60)
+        
         print('\n训练完成!')
+        print(f'总训练时长: {int(hours)}小时 {int(minutes)}分钟 {seconds:.1f}秒')
         print(f'最佳验证准确率: {self.best_acc:.2f}%')
+        if self.best_epoch > 0:
+            print(f'最佳模型(best_model.pth)来自训练第 {self.best_epoch} 轮')
         
         return self.train_losses, self.train_accs, self.val_accs
 
 
 def plot_training_curves(train_losses, train_accs, val_accs, save_path='training_curves.png'):
     try:
+        import matplotlib
+        matplotlib.use('Agg')
         import matplotlib.pyplot as plt
+        import warnings
+        warnings.filterwarnings('ignore', category=UserWarning)
+        
+        plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans']
+        plt.rcParams['axes.unicode_minus'] = False
         
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
         
         epochs = range(1, len(train_losses) + 1)
         
-        ax1.plot(epochs, train_losses, 'b-', label='训练损失')
+        ax1.plot(epochs, train_losses, 'b-', label='Train Loss')
         ax1.set_xlabel('Epoch')
         ax1.set_ylabel('Loss')
-        ax1.set_title('训练损失曲线')
+        ax1.set_title('Training Loss Curve')
         ax1.legend()
         ax1.grid(True)
         
-        ax2.plot(epochs, train_accs, 'b-', label='训练准确率')
-        ax2.plot(epochs, val_accs, 'r-', label='验证准确率')
+        ax2.plot(epochs, train_accs, 'b-', label='Train Acc')
+        ax2.plot(epochs, val_accs, 'r-', label='Val Acc')
         ax2.set_xlabel('Epoch')
         ax2.set_ylabel('Accuracy (%)')
-        ax2.set_title('准确率曲线')
+        ax2.set_title('Accuracy Curve')
         ax2.legend()
         ax2.grid(True)
         

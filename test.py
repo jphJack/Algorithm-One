@@ -65,17 +65,24 @@ class Tester:
 
 def plot_confusion_matrix(cm, save_path='confusion_matrix.png', num_classes_to_show=50):
     try:
+        import matplotlib
+        matplotlib.use('Agg')
         import matplotlib.pyplot as plt
         import seaborn as sns
+        import warnings
+        warnings.filterwarnings('ignore', category=UserWarning)
+        
+        plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans']
+        plt.rcParams['axes.unicode_minus'] = False
         
         plt.figure(figsize=(12, 10))
         
         cm_subset = cm[:num_classes_to_show, :num_classes_to_show]
         
         sns.heatmap(cm_subset, annot=False, fmt='d', cmap='Blues')
-        plt.xlabel('预测类别')
-        plt.ylabel('真实类别')
-        plt.title(f'混淆矩阵 (前{num_classes_to_show}类)')
+        plt.xlabel('Predicted Class')
+        plt.ylabel('True Class')
+        plt.title(f'Confusion Matrix (First {num_classes_to_show} Classes)')
         plt.tight_layout()
         plt.savefig(save_path, dpi=150)
         plt.close()
