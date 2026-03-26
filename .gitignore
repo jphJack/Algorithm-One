@@ -1,0 +1,72 @@
+# Python_pycache__/.py[cod]$py.class
+
+# Distribution / packaging
+.Pythonuild/evelop-eggs/ist/ownloads/ggs/.eggs//lib//lib64//parts/dist/ar/heels/ip-wheel-metadata/.installed.cfg.egg-info/.egg
+
+# PyInstaller
+.manifest.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/	ox/
+osetests.xml
+coverage.xml
+*.cover
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.pyb.sqlite3
+
+# Flask stuff:
+instance/ebassets-cache/
+
+# Scrapy stuff:
+.scrapy/
+
+# Sphinx documentationocs/_build/
+
+# PyBuilder	arget/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/python_config.py
+
+# pyenv
+.python-version
+
+# celery beat schedule file
+celerybeat-schedule
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venvnv/env/NV/nv.bak/env.bak/
+
+# IDE
+.idea/scode/.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Image and document files.png.jpg.jpeg.gif.docx.pdf
