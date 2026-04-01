@@ -27,10 +27,30 @@ class HandsDataset(Dataset):
             print_cls_dir = os.path.join(self.print_dir, cls)
             vein_cls_dir = os.path.join(self.vein_dir, cls)
             
-            print_files = sorted(os.listdir(print_cls_dir))
-            vein_files = sorted(os.listdir(vein_cls_dir))
-            
-            for p_file, v_file in zip(print_files, vein_files):
+            print_files = sorted([
+                f for f in os.listdir(print_cls_dir)
+                if os.path.isfile(os.path.join(print_cls_dir, f))
+            ])
+            vein_files = sorted([
+                f for f in os.listdir(vein_cls_dir)
+                if os.path.isfile(os.path.join(vein_cls_dir, f))
+            ])
+
+            print_map = {os.path.splitext(f)[0]: f for f in print_files}
+            vein_map = {os.path.splitext(f)[0]: f for f in vein_files}
+            common_stems = sorted(set(print_map.keys()) & set(vein_map.keys()))
+
+            missing_in_vein = len(print_map) - len(common_stems)
+            missing_in_print = len(vein_map) - len(common_stems)
+            if missing_in_vein > 0 or missing_in_print > 0:
+                print(
+                    f"[警告] 类别 {cls} 模态文件不完全匹配: "
+                    f"print缺失{missing_in_print}, vein缺失{missing_in_vein}"
+                )
+
+            for stem in common_stems:
+                p_file = print_map[stem]
+                v_file = vein_map[stem]
                 self.samples.append((
                     os.path.join(print_cls_dir, p_file),
                     os.path.join(vein_cls_dir, v_file),
@@ -53,25 +73,60 @@ class HandsDataset(Dataset):
         return print_img, vein_img, label
 
 
-def get_transforms():
-    print_transform = transforms.Compose([
-        transforms.Resize(config.PRINT_IMAGE_SIZE),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5], std=[0.5])
-    ])
-    
-    vein_transform = transforms.Compose([
-        transforms.Resize(config.VEIN_IMAGE_SIZE),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.5], std=[0.5])
-    ])
+def get_transforms(mode='train'):
+    if mode == 'train':
+        print_transform = transforms.Compose([
+            transforms.Resize(config.PRINT_IMAGE_SIZE),
+            transforms.RandomAffine(
+                degrees=config.TRAIN_ROTATION_DEGREES,
+                translate=(config.TRAIN_TRANSLATE, config.TRAIN_TRANSLATE),
+                scale=(config.TRAIN_SCALE_MIN, config.TRAIN_SCALE_MAX)
+            ),
+            transforms.ColorJitter(
+                brightness=config.TRAIN_BRIGHTNESS,
+                contrast=config.TRAIN_CONTRAST
+            ),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5], std=[0.5]),
+            transforms.RandomErasing(p=config.TRAIN_RANDOM_ERASE_P, scale=(0.01, 0.08), ratio=(0.3, 3.3))
+        ])
+
+        vein_transform = transforms.Compose([
+            transforms.Resize(config.VEIN_IMAGE_SIZE),
+            transforms.RandomAffine(
+                degrees=config.TRAIN_ROTATION_DEGREES,
+                translate=(config.TRAIN_TRANSLATE, config.TRAIN_TRANSLATE),
+                scale=(config.TRAIN_SCALE_MIN, config.TRAIN_SCALE_MAX)
+            ),
+            transforms.ColorJitter(
+                brightness=config.TRAIN_BRIGHTNESS,
+                contrast=config.TRAIN_CONTRAST
+            ),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5], std=[0.5]),
+            transforms.RandomErasing(p=config.TRAIN_RANDOM_ERASE_P, scale=(0.01, 0.08), ratio=(0.3, 3.3))
+        ])
+    else:
+        print_transform = transforms.Compose([
+            transforms.Resize(config.PRINT_IMAGE_SIZE),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5], std=[0.5])
+        ])
+
+        vein_transform = transforms.Compose([
+            transforms.Resize(config.VEIN_IMAGE_SIZE),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5], std=[0.5])
+        ])
     
     return {'print': print_transform, 'vein': vein_transform}
 
 
 def get_dataloader(data_dir, mode='train', batch_size=32, num_workers=4, shuffle=True):
-    transform = get_transforms()
+    transform = get_transforms(mode=mode)
     dataset = HandsDataset(data_dir, mode=mode, transform=transform)
+    if mode != 'train':
+        shuffle = False
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,

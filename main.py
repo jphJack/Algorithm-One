@@ -2,12 +2,23 @@ import os
 import argparse
 import torch
 import sys
+import random
+import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from models.vibe_net import VIBENet
 from dataset import get_dataloader
 import config
+
+
+def set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 def count_parameters(model):
@@ -53,6 +64,8 @@ def main():
                         help='加载的检查点路径')
     parser.add_argument('--num-workers', type=int, default=config.NUM_WORKERS,
                         help=f'数据加载线程数 (默认: {config.NUM_WORKERS})')
+    parser.add_argument('--seed', type=int, default=config.SEED,
+                        help=f'随机种子 (默认: {config.SEED})')
     
     args = parser.parse_args()
     
@@ -61,6 +74,9 @@ def main():
     config.LEARNING_RATE = args.lr
     config.FEATURE_DIM = args.feature_dim
     config.NUM_WORKERS = args.num_workers
+    config.SEED = args.seed
+
+    set_seed(config.SEED)
     
     print('=' * 60)
     print('VIBE双模态生物特征识别网络')
@@ -69,6 +85,7 @@ def main():
     print(f'类别数: {config.NUM_CLASSES}')
     print(f'批次大小: {config.BATCH_SIZE}')
     print(f'特征维度: {config.FEATURE_DIM}')
+    print(f'随机种子: {config.SEED}')
     print('=' * 60)
     
     if args.mode == 'train':

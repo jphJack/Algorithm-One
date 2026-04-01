@@ -1,9 +1,10 @@
 import os
 import time
+import math
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.optim.lr_scheduler import CosineAnnealingLR
+from torch.optim.lr_scheduler import LambdaLR
 from tqdm import tqdm
 import sys
 
@@ -24,23 +25,38 @@ class Trainer:
         
         os.makedirs(save_dir, exist_ok=True)
         
-        self.criterion = nn.CrossEntropyLoss()
+        self.criterion = nn.CrossEntropyLoss(label_smoothing=config.LABEL_SMOOTHING)
         self.optimizer = optim.AdamW(
             model.parameters(),
             lr=config.LEARNING_RATE,
-            weight_decay=1e-4
+            weight_decay=config.WEIGHT_DECAY
         )
-        self.scheduler = CosineAnnealingLR(
-            self.optimizer,
-            T_max=config.NUM_EPOCHS,
-            eta_min=1e-6
-        )
+        self.scheduler = self._build_scheduler()
         
         self.best_acc = 0.0
+        self.best_val_loss = float('inf')
         self.best_epoch = -1  # 记录最佳模型的epoch
+        self.early_stop_counter = 0
         self.train_losses = []
         self.train_accs = []
+        self.val_losses = []
         self.val_accs = []
+
+    def _build_scheduler(self):
+        warmup_epochs = max(0, min(config.WARMUP_EPOCHS, config.NUM_EPOCHS - 1))
+        total_epochs = config.NUM_EPOCHS
+        min_lr_ratio = 1e-2
+
+        def lr_lambda(epoch):
+            if warmup_epochs > 0 and epoch < warmup_epochs:
+                return float(epoch + 1) / float(warmup_epochs)
+
+            progress_denom = max(1, total_epochs - warmup_epochs)
+            progress = (epoch - warmup_epochs) / progress_denom
+            cosine = 0.5 * (1.0 + math.cos(math.pi * progress))
+            return min_lr_ratio + (1.0 - min_lr_ratio) * cosine
+
+        return LambdaLR(self.optimizer, lr_lambda=lr_lambda)
     
     def train_epoch(self, epoch):
         self.model.train()
@@ -50,7 +66,7 @@ class Trainer:
         
         pbar = tqdm(self.train_loader, desc=f'Epoch {epoch+1}/{config.NUM_EPOCHS}')
         
-        for print_img, vein_img, labels in pbar:
+        for batch_idx, (print_img, vein_img, labels) in enumerate(pbar, start=1):
             print_img = print_img.to(self.device)
             vein_img = vein_img.to(self.device)
             labels = labels.to(self.device)
@@ -70,7 +86,7 @@ class Trainer:
             correct += predicted.eq(labels).sum().item()
             
             pbar.set_postfix({
-                'loss': f'{running_loss/len(pbar):.4f}',
+                'loss': f'{running_loss/batch_idx:.4f}',
                 'acc': f'{100.*correct/total:.2f}%'
             })
         
@@ -81,6 +97,7 @@ class Trainer:
     
     def validate(self):
         self.model.eval()
+        running_loss = 0.0
         correct = 0
         total = 0
         
@@ -91,12 +108,15 @@ class Trainer:
                 labels = labels.to(self.device)
                 
                 outputs = self.model(print_img, vein_img)
+                loss = self.criterion(outputs, labels)
                 _, predicted = outputs.max(1)
                 total += labels.size(0)
                 correct += predicted.eq(labels).sum().item()
+                running_loss += loss.item()
         
+        avg_loss = running_loss / len(self.val_loader)
         acc = 100. * correct / total
-        return acc
+        return avg_loss, acc
     
     def save_checkpoint(self, epoch, is_best=False):
         checkpoint = {
@@ -105,8 +125,11 @@ class Trainer:
             'optimizer_state_dict': self.optimizer.state_dict(),
             'scheduler_state_dict': self.scheduler.state_dict(),
             'best_acc': self.best_acc,
+            'best_val_loss': self.best_val_loss,
+            'best_epoch': self.best_epoch,
             'train_losses': self.train_losses,
             'train_accs': self.train_accs,
+            'val_losses': self.val_losses,
             'val_accs': self.val_accs
         }
         
@@ -124,8 +147,11 @@ class Trainer:
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
         self.best_acc = checkpoint['best_acc']
+        self.best_val_loss = checkpoint.get('best_val_loss', float('inf'))
+        self.best_epoch = checkpoint.get('best_epoch', -1)
         self.train_losses = checkpoint['train_losses']
         self.train_accs = checkpoint['train_accs']
+        self.val_losses = checkpoint.get('val_losses', [])
         self.val_accs = checkpoint['val_accs']
         return checkpoint['epoch']
     
@@ -141,28 +167,44 @@ class Trainer:
             epoch_start_time = time.time()
             
             train_loss, train_acc = self.train_epoch(epoch)
-            val_acc = self.validate()
+            val_loss, val_acc = self.validate()
             
             self.scheduler.step()
             
             self.train_losses.append(train_loss)
             self.train_accs.append(train_acc)
+            self.val_losses.append(val_loss)
             self.val_accs.append(val_acc)
             
             epoch_time = time.time() - epoch_start_time
             
             print(f'\nEpoch {epoch+1}/{config.NUM_EPOCHS} - {epoch_time:.1f}s')
             print(f'  训练损失: {train_loss:.4f}, 训练准确率: {train_acc:.2f}%')
-            print(f'  验证准确率: {val_acc:.2f}%')
+            print(f'  验证损失: {val_loss:.4f}, 验证准确率: {val_acc:.2f}%')
             print(f'  学习率: {self.optimizer.param_groups[0]["lr"]:.6f}')
             
-            is_best = val_acc > self.best_acc
+            improve_acc = val_acc > (self.best_acc + config.EARLY_STOPPING_MIN_DELTA)
+            improve_tie_break = (
+                abs(val_acc - self.best_acc) <= config.EARLY_STOPPING_MIN_DELTA
+                and val_loss < self.best_val_loss
+            )
+            is_best = improve_acc or improve_tie_break
             if is_best:
                 self.best_acc = val_acc
+                self.best_val_loss = val_loss
                 self.best_epoch = epoch + 1  # 记录最佳模型的epoch（从1开始计数）
+                self.early_stop_counter = 0
+            else:
+                self.early_stop_counter += 1
             
             if (epoch + 1) % 10 == 0 or is_best:
                 self.save_checkpoint(epoch, is_best)
+
+            if self.early_stop_counter >= config.EARLY_STOPPING_PATIENCE:
+                print(
+                    f'触发Early Stopping: 连续{config.EARLY_STOPPING_PATIENCE}轮无验证集提升，提前结束训练。'
+                )
+                break
         
         total_time = time.time() - total_start_time
         hours, rem = divmod(total_time, 3600)

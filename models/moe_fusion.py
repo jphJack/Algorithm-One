@@ -152,6 +152,7 @@ class MoEFusion(nn.Module):
         ])
         
         self.gate = FusionGateNetwork(channels, num_experts)
+        self.dropout = nn.Dropout2d(p=0.1)
     
     def forward(self, f_p, f_v):
         weights = self.gate(f_p, f_v)
@@ -162,7 +163,11 @@ class MoEFusion(nn.Module):
         out = torch.zeros(B, C, H, W, device=f_p.device)
         for i, expert_out in enumerate(expert_outputs):
             out = out + weights[:, i].view(B, 1, 1, 1) * expert_out
-        
+
+        out = self.dropout(out)
+        residual = 0.5 * (f_p + f_v)
+        out = out + residual
+
         return out
 
 

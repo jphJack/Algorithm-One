@@ -76,14 +76,8 @@ class MidFreqExpert(nn.Module):
             nn.ReLU(inplace=True)
         )
         
-        self.branch3 = nn.Sequential(
-            nn.Conv2d(channels, channels // 4, kernel_size=3, padding=4, dilation=4, bias=False),
-            nn.BatchNorm2d(channels // 4),
-            nn.ReLU(inplace=True)
-        )
-        
         self.aspp_fuse = nn.Sequential(
-            nn.Conv2d(channels // 4 * 3, channels, kernel_size=1, bias=False),
+            nn.Conv2d(channels // 4 * 2, channels, kernel_size=1, bias=False),
             nn.BatchNorm2d(channels),
             nn.ReLU(inplace=True)
         )
@@ -112,8 +106,7 @@ class MidFreqExpert(nn.Module):
     def forward(self, x):
         aspp_out1 = self.branch1(x)
         aspp_out2 = self.branch2(x)
-        aspp_out3 = self.branch3(x)
-        aspp_fused = torch.cat([aspp_out1, aspp_out2, aspp_out3], dim=1)
+        aspp_fused = torch.cat([aspp_out1, aspp_out2], dim=1)
         aspp_out = self.aspp_fuse(aspp_fused)
         
         dir_out1 = self.dir_conv1(x)
@@ -214,6 +207,7 @@ class MoEEnhancement(nn.Module):
         ])
         
         self.gate = GateNetwork(channels, num_experts)
+        self.dropout = nn.Dropout2d(p=0.1)
     
     def forward(self, x):
         weights = self.gate(x)
@@ -224,7 +218,10 @@ class MoEEnhancement(nn.Module):
         out = torch.zeros(B, C, H, W, device=x.device)
         for i, expert_out in enumerate(expert_outputs):
             out = out + weights[:, i].view(B, 1, 1, 1) * expert_out
-        
+
+        out = self.dropout(out)
+        out = out + x
+
         return out
 
 
