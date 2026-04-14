@@ -53,15 +53,19 @@ class HandsDataset(Dataset):
         return print_img, vein_img, label
 
 
-def get_transforms():
+def get_transforms(dataset_name):
+    dataset_cfg = config.get_dataset_config(dataset_name)
+    print_size = dataset_cfg['print_size']
+    vein_size = dataset_cfg['vein_size']
+    
     print_transform = transforms.Compose([
-        transforms.Resize(config.PRINT_IMAGE_SIZE),
+        transforms.Resize(print_size),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.5], std=[0.5])
     ])
     
     vein_transform = transforms.Compose([
-        transforms.Resize(config.VEIN_IMAGE_SIZE),
+        transforms.Resize(vein_size),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.5], std=[0.5])
     ])
@@ -69,8 +73,11 @@ def get_transforms():
     return {'print': print_transform, 'vein': vein_transform}
 
 
-def get_dataloader(data_dir, mode='train', batch_size=32, num_workers=4, shuffle=True):
-    transform = get_transforms()
+def get_dataloader(dataset_name, mode='train', batch_size=32, num_workers=4, shuffle=True):
+    dataset_cfg = config.get_dataset_config(dataset_name)
+    data_dir = dataset_cfg['data_dir']
+    
+    transform = get_transforms(dataset_name)
     dataset = HandsDataset(data_dir, mode=mode, transform=transform)
     dataloader = DataLoader(
         dataset,
@@ -83,11 +90,16 @@ def get_dataloader(data_dir, mode='train', batch_size=32, num_workers=4, shuffle
 
 
 if __name__ == '__main__':
-    train_loader = get_dataloader(config.DATA_DIR, mode='train', batch_size=4)
-    print(f"训练集样本数: {len(train_loader.dataset)}")
-    
-    for print_img, vein_img, label in train_loader:
-        print(f"掌纹图像形状: {print_img.shape}")
-        print(f"掌静脉图像形状: {vein_img.shape}")
-        print(f"标签: {label}")
-        break
+    for dataset_name in ['HandsData', 'CASIA', 'QH', 'TJ']:
+        print(f"\n测试数据集: {dataset_name}")
+        try:
+            train_loader = get_dataloader(dataset_name, mode='train', batch_size=4, num_workers=0)
+            print(f"  训练集样本数: {len(train_loader.dataset)}")
+            print(f"  类别数: {len(train_loader.dataset.classes)}")
+            
+            for print_img, vein_img, label in train_loader:
+                print(f"  掌纹图像形状: {print_img.shape}")
+                print(f"  掌静脉图像形状: {vein_img.shape}")
+                break
+        except Exception as e:
+            print(f"  错误: {e}")

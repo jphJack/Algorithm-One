@@ -28,7 +28,7 @@ class Trainer:
         self.optimizer = optim.AdamW(
             model.parameters(),
             lr=config.LEARNING_RATE,
-            weight_decay=1e-4
+            weight_decay=config.WEIGHT_DECAY
         )
         self.scheduler = CosineAnnealingLR(
             self.optimizer,
@@ -37,7 +37,7 @@ class Trainer:
         )
         
         self.best_acc = 0.0
-        self.best_epoch = -1  # 记录最佳模型的epoch
+        self.best_epoch = -1
         self.train_losses = []
         self.train_accs = []
         self.val_accs = []
@@ -105,6 +105,7 @@ class Trainer:
             'optimizer_state_dict': self.optimizer.state_dict(),
             'scheduler_state_dict': self.scheduler.state_dict(),
             'best_acc': self.best_acc,
+            'best_epoch': self.best_epoch,
             'train_losses': self.train_losses,
             'train_accs': self.train_accs,
             'val_accs': self.val_accs
@@ -124,6 +125,7 @@ class Trainer:
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
         self.best_acc = checkpoint['best_acc']
+        self.best_epoch = checkpoint.get('best_epoch', -1)
         self.train_losses = checkpoint['train_losses']
         self.train_accs = checkpoint['train_accs']
         self.val_accs = checkpoint['val_accs']
@@ -159,7 +161,7 @@ class Trainer:
             is_best = val_acc > self.best_acc
             if is_best:
                 self.best_acc = val_acc
-                self.best_epoch = epoch + 1  # 记录最佳模型的epoch（从1开始计数）
+                self.best_epoch = epoch + 1
             
             if (epoch + 1) % 10 == 0 or is_best:
                 self.save_checkpoint(epoch, is_best)
@@ -215,12 +217,22 @@ def plot_training_curves(train_losses, train_accs, val_accs, save_path='training
         print('matplotlib未安装，跳过绘图')
 
 
-def main():
+def main(dataset_name=None):
+    if dataset_name is None:
+        dataset_name = config.DEFAULT_DATASET
+    
+    dataset_cfg = config.get_dataset_config(dataset_name)
+    num_classes = dataset_cfg['num_classes']
+    save_dir = config.get_save_dir(dataset_name)
+    
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'使用设备: {device}')
+    print(f'数据集: {dataset_name}')
+    print(f'类别数: {num_classes}')
+    print(f'保存目录: {save_dir}')
     
     train_loader = get_dataloader(
-        config.DATA_DIR,
+        dataset_name,
         mode='train',
         batch_size=config.BATCH_SIZE,
         num_workers=config.NUM_WORKERS,
@@ -228,23 +240,26 @@ def main():
     )
     
     val_loader = get_dataloader(
-        config.DATA_DIR,
+        dataset_name,
         mode='test',
         batch_size=config.BATCH_SIZE,
         num_workers=config.NUM_WORKERS,
         shuffle=False
     )
     
-    model = VIBENet(num_classes=config.NUM_CLASSES, feature_dim=config.FEATURE_DIM)
+    model = VIBENet(num_classes=num_classes, feature_dim=config.FEATURE_DIM)
     
     total_params = sum(p.numel() for p in model.parameters())
     print(f'模型参数量: {total_params:,}')
     
-    trainer = Trainer(model, train_loader, val_loader, device)
+    trainer = Trainer(model, train_loader, val_loader, device, save_dir)
     
     train_losses, train_accs, val_accs = trainer.train()
     
-    plot_training_curves(train_losses, train_accs, val_accs)
+    plot_training_curves(
+        train_losses, train_accs, val_accs,
+        save_path=os.path.join(save_dir, 'training_curves.png')
+    )
 
 
 if __name__ == '__main__':

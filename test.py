@@ -61,6 +61,8 @@ class Tester:
         print(f'已加载模型: {path}')
         if 'best_acc' in checkpoint:
             print(f'训练时最佳准确率: {checkpoint["best_acc"]:.2f}%')
+        if 'best_epoch' in checkpoint and checkpoint['best_epoch'] > 0:
+            print(f'最佳模型来自训练第 {checkpoint["best_epoch"]} 轮')
 
 
 def plot_confusion_matrix(cm, save_path='confusion_matrix.png', num_classes_to_show=50):
@@ -120,23 +122,32 @@ def analyze_results(preds, labels, num_classes):
     return cm, class_acc
 
 
-def main():
+def main(dataset_name=None):
+    if dataset_name is None:
+        dataset_name = config.DEFAULT_DATASET
+    
+    dataset_cfg = config.get_dataset_config(dataset_name)
+    num_classes = dataset_cfg['num_classes']
+    save_dir = config.get_save_dir(dataset_name)
+    
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'使用设备: {device}')
+    print(f'数据集: {dataset_name}')
+    print(f'类别数: {num_classes}')
     
     test_loader = get_dataloader(
-        config.DATA_DIR,
+        dataset_name,
         mode='test',
         batch_size=config.BATCH_SIZE,
         num_workers=config.NUM_WORKERS,
         shuffle=False
     )
     
-    model = VIBENet(num_classes=config.NUM_CLASSES, feature_dim=config.FEATURE_DIM)
+    model = VIBENet(num_classes=num_classes, feature_dim=config.FEATURE_DIM)
     
     tester = Tester(model, test_loader, device)
     
-    checkpoint_path = os.path.join('checkpoints', 'best_model.pth')
+    checkpoint_path = os.path.join(save_dir, 'best_model.pth')
     if os.path.exists(checkpoint_path):
         tester.load_checkpoint(checkpoint_path)
     else:
@@ -145,9 +156,9 @@ def main():
     
     accuracy, preds, labels = tester.evaluate()
     
-    cm, class_acc = analyze_results(preds, labels, config.NUM_CLASSES)
+    cm, class_acc = analyze_results(preds, labels, num_classes)
     
-    plot_confusion_matrix(cm, num_classes_to_show=50)
+    plot_confusion_matrix(cm, save_path=os.path.join(save_dir, 'confusion_matrix.png'), num_classes_to_show=50)
     
     print('\n' + '=' * 50)
     print('测试完成!')

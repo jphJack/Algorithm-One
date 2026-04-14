@@ -14,18 +14,28 @@ def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-def demo_inference():
+def demo_inference(dataset_name=None):
+    if dataset_name is None:
+        dataset_name = config.DEFAULT_DATASET
+    
+    dataset_cfg = config.get_dataset_config(dataset_name)
+    num_classes = dataset_cfg['num_classes']
+    print_size = dataset_cfg['print_size']
+    vein_size = dataset_cfg['vein_size']
+    
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'使用设备: {device}')
+    print(f'数据集: {dataset_name}')
+    print(f'类别数: {num_classes}')
     
-    model = VIBENet(num_classes=config.NUM_CLASSES, feature_dim=config.FEATURE_DIM)
+    model = VIBENet(num_classes=num_classes, feature_dim=config.FEATURE_DIM)
     model = model.to(device)
     model.eval()
     
     print(f'模型参数量: {count_parameters(model):,}')
     
-    print_img = torch.randn(1, 1, 217, 190).to(device)
-    vein_img = torch.randn(1, 1, 180, 180).to(device)
+    print_img = torch.randn(1, 1, print_size[0], print_size[1]).to(device)
+    vein_img = torch.randn(1, 1, vein_size[0], vein_size[1]).to(device)
     
     with torch.no_grad():
         output = model(print_img, vein_img)
@@ -41,6 +51,9 @@ def main():
     parser = argparse.ArgumentParser(description='VIBE双模态生物特征识别网络')
     parser.add_argument('--mode', type=str, default='train', choices=['train', 'test', 'demo'],
                         help='运行模式: train(训练), test(测试), demo(演示)')
+    parser.add_argument('--dataset', type=str, default=config.DEFAULT_DATASET,
+                        choices=list(config.DATASET_CONFIG.keys()),
+                        help=f'数据集选择 (默认: {config.DEFAULT_DATASET})')
     parser.add_argument('--epochs', type=int, default=config.NUM_EPOCHS,
                         help=f'训练轮数 (默认: {config.NUM_EPOCHS})')
     parser.add_argument('--batch-size', type=int, default=config.BATCH_SIZE,
@@ -62,25 +75,31 @@ def main():
     config.FEATURE_DIM = args.feature_dim
     config.NUM_WORKERS = args.num_workers
     
+    dataset_cfg = config.get_dataset_config(args.dataset)
+    num_classes = dataset_cfg['num_classes']
+    save_dir = config.get_save_dir(args.dataset)
+    
     print('=' * 60)
     print('VIBE双模态生物特征识别网络')
     print('=' * 60)
     print(f'模式: {args.mode}')
-    print(f'类别数: {config.NUM_CLASSES}')
+    print(f'数据集: {args.dataset}')
+    print(f'类别数: {num_classes}')
     print(f'批次大小: {config.BATCH_SIZE}')
     print(f'特征维度: {config.FEATURE_DIM}')
+    print(f'保存目录: {save_dir}')
     print('=' * 60)
     
     if args.mode == 'train':
         from train import main as train_main
-        train_main()
+        train_main(args.dataset)
     
     elif args.mode == 'test':
         from test import main as test_main
-        test_main()
+        test_main(args.dataset)
     
     elif args.mode == 'demo':
-        demo_inference()
+        demo_inference(args.dataset)
 
 
 if __name__ == '__main__':
