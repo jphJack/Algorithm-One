@@ -215,7 +215,7 @@ class MoEEnhancement(nn.Module):
         
         self.gate = GateNetwork(channels, num_experts)
     
-    def forward(self, x):
+    def forward(self, x, return_gate_weights=False):
         weights = self.gate(x)
         
         expert_outputs = [expert(x) for expert in self.experts]
@@ -225,6 +225,8 @@ class MoEEnhancement(nn.Module):
         for i, expert_out in enumerate(expert_outputs):
             out = out + weights[:, i].view(B, 1, 1, 1) * expert_out
         
+        if return_gate_weights:
+            return out, weights
         return out
 
 

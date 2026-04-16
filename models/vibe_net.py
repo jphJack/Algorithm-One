@@ -19,11 +19,15 @@ class VIBENet(nn.Module):
         
         self.classifier = Classifier(feature_dim, num_classes)
     
-    def forward(self, print_img, vein_img):
+    def forward(self, print_img, vein_img, return_gate_weights=False):
         print_feat, vein_feat = self.backbone(print_img, vein_img)
         
-        print_enhanced = self.print_enhancement(print_feat)
-        vein_enhanced = self.vein_enhancement(vein_feat)
+        if return_gate_weights:
+            print_enhanced, print_gate_weights = self.print_enhancement(print_feat, return_gate_weights=True)
+            vein_enhanced, vein_gate_weights = self.vein_enhancement(vein_feat, return_gate_weights=True)
+        else:
+            print_enhanced = self.print_enhancement(print_feat)
+            vein_enhanced = self.vein_enhancement(vein_feat)
         
         if print_enhanced.shape[2:] != vein_enhanced.shape[2:]:
             target_h = min(print_enhanced.shape[2], vein_enhanced.shape[2])
@@ -35,9 +39,20 @@ class VIBENet(nn.Module):
                 vein_enhanced, size=(target_h, target_w), mode='bilinear', align_corners=True
             )
         
-        fused_feat = self.fusion(print_enhanced, vein_enhanced)
+        if return_gate_weights:
+            fused_feat, fusion_gate_weights = self.fusion(print_enhanced, vein_enhanced, return_gate_weights=True)
+        else:
+            fused_feat = self.fusion(print_enhanced, vein_enhanced)
         
         output = self.classifier(fused_feat)
+        
+        if return_gate_weights:
+            gate_weights = {
+                'print_enhancement': print_gate_weights,
+                'vein_enhancement': vein_gate_weights,
+                'fusion': fusion_gate_weights
+            }
+            return output, gate_weights
         
         return output
 
@@ -53,5 +68,10 @@ if __name__ == '__main__':
     print(f"掌静脉图像形状: {vein_img.shape}")
     print(f"输出形状: {output.shape}")
     
+    output, gate_weights = model(print_img, vein_img, return_gate_weights=True)
+    print(f"\n门控权重:")
+    for name, weights in gate_weights.items():
+        print(f"  {name}: {weights.shape} -> {weights}")
+    
     total_params = sum(p.numel() for p in model.parameters())
-    print(f"总参数量: {total_params:,}")
+    print(f"\n总参数量: {total_params:,}")

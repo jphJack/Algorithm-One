@@ -153,7 +153,7 @@ class MoEFusion(nn.Module):
         
         self.gate = FusionGateNetwork(channels, num_experts)
     
-    def forward(self, f_p, f_v):
+    def forward(self, f_p, f_v, return_gate_weights=False):
         weights = self.gate(f_p, f_v)
         
         expert_outputs = [expert(f_p, f_v) for expert in self.experts]
@@ -163,6 +163,8 @@ class MoEFusion(nn.Module):
         for i, expert_out in enumerate(expert_outputs):
             out = out + weights[:, i].view(B, 1, 1, 1) * expert_out
         
+        if return_gate_weights:
+            return out, weights
         return out
 
 
