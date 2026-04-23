@@ -14,11 +14,16 @@ def test_model_forward():
     print("测试模型前向传播")
     print("=" * 50)
     
-    model = VIBENet(num_classes=config.NUM_CLASSES, feature_dim=config.FEATURE_DIM)
+    dataset_cfg = config.get_dataset_config(config.DEFAULT_DATASET)
+    num_classes = dataset_cfg['num_classes']
+    in_channels = dataset_cfg['in_channels']
+    img_size = dataset_cfg['img_size']
+    
+    model = VIBENet(num_classes=num_classes, feature_dim=config.FEATURE_DIM)
     model.eval()
     
-    print_img = torch.randn(2, 1, 217, 190)
-    vein_img = torch.randn(2, 1, 180, 180)
+    print_img = torch.randn(2, in_channels, img_size[0], img_size[1])
+    vein_img = torch.randn(2, in_channels, img_size[0], img_size[1])
     
     with torch.no_grad():
         output = model(print_img, vein_img)
@@ -26,9 +31,9 @@ def test_model_forward():
     print(f"掌纹图像输入形状: {print_img.shape}")
     print(f"掌静脉图像输入形状: {vein_img.shape}")
     print(f"模型输出形状: {output.shape}")
-    print(f"预期输出形状: [2, {config.NUM_CLASSES}]")
+    print(f"预期输出形状: [2, {num_classes}]")
     
-    assert output.shape == (2, config.NUM_CLASSES), f"输出形状不正确: {output.shape}"
+    assert output.shape == (2, num_classes), f"输出形状不正确: {output.shape}"
     print("✓ 模型前向传播测试通过!")
     
     total_params = sum(p.numel() for p in model.parameters())
@@ -45,9 +50,12 @@ def test_dataloader():
     print("测试数据加载器")
     print("=" * 50)
     
+    dataset_cfg = config.get_dataset_config(config.DEFAULT_DATASET)
+    img_size = dataset_cfg['img_size']
+    
     try:
         train_loader = get_dataloader(
-            config.DATA_DIR, 
+            config.DEFAULT_DATASET, 
             mode='train', 
             batch_size=4, 
             num_workers=0,
@@ -64,8 +72,8 @@ def test_dataloader():
             print(f"  标签: {label}")
             break
         
-        assert print_img.shape[2:] == (217, 190), f"掌纹图像尺寸不正确: {print_img.shape}"
-        assert vein_img.shape[2:] == (180, 180), f"掌静脉图像尺寸不正确: {vein_img.shape}"
+        assert print_img.shape[2:] == img_size, f"掌纹图像尺寸不正确: {print_img.shape}"
+        assert vein_img.shape[2:] == img_size, f"掌静脉图像尺寸不正确: {vein_img.shape}"
         
         print("\n✓ 数据加载器测试通过!")
         return True
@@ -80,12 +88,15 @@ def test_full_pipeline():
     print("测试完整流程")
     print("=" * 50)
     
-    model = VIBENet(num_classes=config.NUM_CLASSES, feature_dim=config.FEATURE_DIM)
+    dataset_cfg = config.get_dataset_config(config.DEFAULT_DATASET)
+    num_classes = dataset_cfg['num_classes']
+    
+    model = VIBENet(num_classes=num_classes, feature_dim=config.FEATURE_DIM)
     model.eval()
     
     try:
         train_loader = get_dataloader(
-            config.DATA_DIR, 
+            config.DEFAULT_DATASET, 
             mode='train', 
             batch_size=4, 
             num_workers=0,
@@ -129,8 +140,8 @@ def test_module_shapes():
     B, C, H, W = 2, 256, 7, 6
     
     print("\n1. 骨干网络测试:")
-    backbone = LightweightBackbone(in_channels=1, feature_dim=256)
-    x = torch.randn(B, 1, 217, 190)
+    backbone = LightweightBackbone(in_channels=3, feature_dim=256)
+    x = torch.randn(B, 3, 128, 128)
     out = backbone(x)
     print(f"   输入: {x.shape} -> 输出: {out.shape}")
     
@@ -160,7 +171,9 @@ def test_module_shapes():
     print(f"   MoE融合: ({f_p.shape}, {f_v.shape}) -> {moe_fusion(f_p, f_v).shape}")
     
     print("\n4. 分类器测试:")
-    classifier = Classifier(C, config.NUM_CLASSES)
+    dataset_cfg = config.get_dataset_config(config.DEFAULT_DATASET)
+    num_classes = dataset_cfg['num_classes']
+    classifier = Classifier(C, num_classes)
     x = torch.randn(B, C, H, W)
     out = classifier(x)
     print(f"   输入: {x.shape} -> 输出: {out.shape}")

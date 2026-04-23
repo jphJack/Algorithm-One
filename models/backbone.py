@@ -68,10 +68,10 @@ class DualStreamBackbone(nn.Module):
 
 
 if __name__ == '__main__':
-    model = DualStreamBackbone(in_channels=1, feature_dim=256)
+    model = DualStreamBackbone(in_channels=3, feature_dim=256)
     
-    print_img = torch.randn(2, 1, 217, 190)
-    vein_img = torch.randn(2, 1, 180, 180)
+    print_img = torch.randn(2, 3, 128, 128)
+    vein_img = torch.randn(2, 3, 128, 128)
     
     print_feat, vein_feat = model(print_img, vein_img)
     print(f"掌纹特征形状: {print_feat.shape}")

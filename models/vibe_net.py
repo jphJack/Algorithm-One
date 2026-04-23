@@ -10,7 +10,7 @@ class VIBENet(nn.Module):
     def __init__(self, num_classes=290, feature_dim=256):
         super(VIBENet, self).__init__()
         
-        self.backbone = DualStreamBackbone(in_channels=1, feature_dim=feature_dim)
+        self.backbone = DualStreamBackbone(in_channels=3, feature_dim=feature_dim)
         
         self.print_enhancement = MoEEnhancement(feature_dim, num_experts=3)
         self.vein_enhancement = MoEEnhancement(feature_dim, num_experts=3)
@@ -60,8 +60,8 @@ class VIBENet(nn.Module):
 if __name__ == '__main__':
     model = VIBENet(num_classes=290, feature_dim=256)
     
-    print_img = torch.randn(2, 1, 217, 190)
-    vein_img = torch.randn(2, 1, 180, 180)
+    print_img = torch.randn(2, 3, 128, 128)
+    vein_img = torch.randn(2, 3, 128, 128)
     
     output = model(print_img, vein_img)
     print(f"掌纹图像形状: {print_img.shape}")

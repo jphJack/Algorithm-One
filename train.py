@@ -217,13 +217,14 @@ def plot_training_curves(train_losses, train_accs, val_accs, save_path='training
         print('matplotlib未安装，跳过绘图')
 
 
-def main(dataset_name=None):
+def main(dataset_name=None, save_dir=None):
     if dataset_name is None:
         dataset_name = config.DEFAULT_DATASET
     
     dataset_cfg = config.get_dataset_config(dataset_name)
     num_classes = dataset_cfg['num_classes']
-    save_dir = config.get_save_dir(dataset_name)
+    if save_dir is None:
+        save_dir = config.get_save_dir(dataset_name)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'使用设备: {device}')

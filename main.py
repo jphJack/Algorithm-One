@@ -20,8 +20,8 @@ def demo_inference(dataset_name=None):
     
     dataset_cfg = config.get_dataset_config(dataset_name)
     num_classes = dataset_cfg['num_classes']
-    print_size = dataset_cfg['print_size']
-    vein_size = dataset_cfg['vein_size']
+    img_size = dataset_cfg['img_size']
+    in_channels = dataset_cfg['in_channels']
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'使用设备: {device}')
@@ -34,8 +34,8 @@ def demo_inference(dataset_name=None):
     
     print(f'模型参数量: {count_parameters(model):,}')
     
-    print_img = torch.randn(1, 1, print_size[0], print_size[1]).to(device)
-    vein_img = torch.randn(1, 1, vein_size[0], vein_size[1]).to(device)
+    print_img = torch.randn(1, in_channels, img_size[0], img_size[1]).to(device)
+    vein_img = torch.randn(1, in_channels, img_size[0], img_size[1]).to(device)
     
     with torch.no_grad():
         output = model(print_img, vein_img)
@@ -66,6 +66,8 @@ def main():
                         help='加载的检查点路径')
     parser.add_argument('--num-workers', type=int, default=config.NUM_WORKERS,
                         help=f'数据加载线程数 (默认: {config.NUM_WORKERS})')
+    parser.add_argument('--save-dir', type=str, default=None,
+                        help='模型保存目录 (默认: checkpoints/<dataset_name>)')
     
     args = parser.parse_args()
     
@@ -77,7 +79,10 @@ def main():
     
     dataset_cfg = config.get_dataset_config(args.dataset)
     num_classes = dataset_cfg['num_classes']
-    save_dir = config.get_save_dir(args.dataset)
+    if args.save_dir:
+        save_dir = args.save_dir
+    else:
+        save_dir = config.get_save_dir(args.dataset)
     
     print('=' * 60)
     print('VIBE双模态生物特征识别网络')
@@ -92,7 +97,7 @@ def main():
     
     if args.mode == 'train':
         from train import main as train_main
-        train_main(args.dataset)
+        train_main(args.dataset, save_dir=save_dir)
     
     elif args.mode == 'test':
         from test import main as test_main
