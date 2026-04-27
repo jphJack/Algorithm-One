@@ -248,7 +248,10 @@ def main(dataset_name=None, save_dir=None):
         shuffle=False
     )
     
-    model = VIBENet(num_classes=num_classes, feature_dim=config.FEATURE_DIM)
+    model = VIBENet(
+        num_classes=num_classes, feature_dim=config.FEATURE_DIM,
+        out_stages=config.OUT_STAGES, reducer_channels=config.REDUCER_CHANNELS
+    )
     
     total_params = sum(p.numel() for p in model.parameters())
     print(f'模型参数量: {total_params:,}')

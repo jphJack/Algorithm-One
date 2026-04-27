@@ -65,6 +65,8 @@ WEIGHT_DECAY = 1e-4
 
 FEATURE_DIM = 256
 NUM_EXPERTS = 3
+OUT_STAGES = [3, 4, 5]
+REDUCER_CHANNELS = 64
 
 
 def get_dataset_config(dataset_name):
@@ -74,4 +76,5 @@ def get_dataset_config(dataset_name):
 
 
 def get_save_dir(dataset_name):
-    return os.path.join(BASE_DIR, 'checkpoints', dataset_name)
+    return os.path.join(BASE_DIR, 'checkpoints2', dataset_name)
+#checkpoints2表示的是骨干提取网络进行了三层提取

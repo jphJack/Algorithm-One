@@ -28,7 +28,10 @@ def demo_inference(dataset_name=None):
     print(f'数据集: {dataset_name}')
     print(f'类别数: {num_classes}')
     
-    model = VIBENet(num_classes=num_classes, feature_dim=config.FEATURE_DIM)
+    model = VIBENet(
+        num_classes=num_classes, feature_dim=config.FEATURE_DIM,
+        out_stages=config.OUT_STAGES, reducer_channels=config.REDUCER_CHANNELS
+    )
     model = model.to(device)
     model.eval()
     

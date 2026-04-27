@@ -14,13 +14,14 @@ ENHANCEMENT_EXPERT_NAMES = ['HighFreq', 'MidFreq', 'LowFreq']
 FUSION_EXPERT_NAMES = ['CrossAttention', 'MultiScaleConv', 'ChannelInteraction']
 
 
-def analyze_expert_weights(dataset_name=None):
+def analyze_expert_weights(dataset_name=None, save_dir=None):
     if dataset_name is None:
         dataset_name = config.DEFAULT_DATASET
     
     dataset_cfg = config.get_dataset_config(dataset_name)
     num_classes = dataset_cfg['num_classes']
-    save_dir = config.get_save_dir(dataset_name)
+    if save_dir is None:
+        save_dir = config.get_save_dir(dataset_name)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'使用设备: {device}')
@@ -203,5 +204,13 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', type=str, default=config.DEFAULT_DATASET,
                         choices=list(config.DATASET_CONFIG.keys()),
                         help=f'数据集选择 (默认: {config.DEFAULT_DATASET})')
+    parser.add_argument('--save-dir', type=str, default=None,
+                        help='结果保存目录 (默认: checkpoints/<dataset_name>)')
     args = parser.parse_args()
-    analyze_expert_weights(args.dataset)
+    
+    if args.save_dir:
+        save_dir = args.save_dir
+    else:
+        save_dir = config.get_save_dir(args.dataset)
+    
+    analyze_expert_weights(args.dataset, save_dir=save_dir)
