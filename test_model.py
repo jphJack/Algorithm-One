@@ -19,7 +19,10 @@ def test_model_forward():
     in_channels = dataset_cfg['in_channels']
     img_size = dataset_cfg['img_size']
 
-    model = VIBENet(num_classes=num_classes, feature_dim=config.FEATURE_DIM)
+    model = VIBENet(
+        num_classes=num_classes, feature_dim=config.FEATURE_DIM,
+        out_stages=config.OUT_STAGES, reducer_channels=config.REDUCER_CHANNELS
+    )
     model.eval()
 
     print_img = torch.randn(2, in_channels, img_size[0], img_size[1])
@@ -42,6 +45,44 @@ def test_model_forward():
     print(f"  总参数量: {total_params:,}")
     print(f"  可训练参数量: {trainable_params:,}")
 
+    return True
+
+
+def test_load_balancing_loss():
+    print("\n" + "=" * 50)
+    print("测试负载均衡损失")
+    print("=" * 50)
+
+    dataset_cfg = config.get_dataset_config(config.DEFAULT_DATASET)
+    num_classes = dataset_cfg['num_classes']
+    in_channels = dataset_cfg['in_channels']
+    img_size = dataset_cfg['img_size']
+
+    model = VIBENet(
+        num_classes=num_classes, feature_dim=config.FEATURE_DIM,
+        out_stages=config.OUT_STAGES, reducer_channels=config.REDUCER_CHANNELS
+    )
+    model.eval()
+
+    print_img = torch.randn(4, in_channels, img_size[0], img_size[1])
+    vein_img = torch.randn(4, in_channels, img_size[0], img_size[1])
+
+    with torch.no_grad():
+        output = model(print_img, vein_img)
+        lb_loss = model.compute_load_balancing_loss()
+
+    print(f"模型输出形状: {output.shape}")
+    print(f"负载均衡损失: {lb_loss.item():.6f}")
+    print(f"负载均衡损失权重: {config.LOAD_BALANCE_WEIGHT}")
+
+    assert lb_loss.item() >= -1e-6, f"负载均衡损失不应为负数: {lb_loss.item()}"
+
+    print(f"\n各MoE模块门控权重分布:")
+    print(f"  掌纹增强: {model.print_enhancement._gate_weights.mean(dim=0)}")
+    print(f"  掌静脉增强: {model.vein_enhancement._gate_weights.mean(dim=0)}")
+    print(f"  融合模块: {model.fusion._gate_weights.mean(dim=0)}")
+
+    print("\n✓ 负载均衡损失测试通过!")
     return True
 
 
@@ -91,7 +132,10 @@ def test_full_pipeline():
     dataset_cfg = config.get_dataset_config(config.DEFAULT_DATASET)
     num_classes = dataset_cfg['num_classes']
 
-    model = VIBENet(num_classes=num_classes, feature_dim=config.FEATURE_DIM)
+    model = VIBENet(
+        num_classes=num_classes, feature_dim=config.FEATURE_DIM,
+        out_stages=config.OUT_STAGES, reducer_channels=config.REDUCER_CHANNELS
+    )
     model.eval()
 
     try:
@@ -106,11 +150,13 @@ def test_full_pipeline():
         for print_img, vein_img, label in train_loader:
             with torch.no_grad():
                 output = model(print_img, vein_img)
+                lb_loss = model.compute_load_balancing_loss()
 
             print(f"输入批次形状:")
             print(f"  掌纹: {print_img.shape}")
             print(f"  掌静脉: {vein_img.shape}")
             print(f"输出形状: {output.shape}")
+            print(f"负载均衡损失: {lb_loss.item():.6f}")
             print(f"标签: {label}")
 
             pred = torch.argmax(output, dim=1)
@@ -171,29 +217,23 @@ def test_module_shapes():
     print(f"   掌静脉特征: {vein_feat.shape}")
 
     print("\n5. MoE特征增强模块测试:")
-    high_freq = HighFreqExpert(C)
-    mid_freq = MidFreqExpert(C)
-    low_freq = LowFreqExpert(C)
     moe_enhance = MoEEnhancement(C)
-
     x = torch.randn(B, C, H, W)
-    print(f"   高频专家: {x.shape} -> {high_freq(x).shape}")
-    print(f"   中频专家: {x.shape} -> {mid_freq(x).shape}")
-    print(f"   低频专家: {x.shape} -> {low_freq(x).shape}")
-    print(f"   MoE增强: {x.shape} -> {moe_enhance(x).shape}")
+    out = moe_enhance(x)
+    lb_loss = moe_enhance.load_balancing_loss()
+    print(f"   MoE增强: {x.shape} -> {out.shape}")
+    print(f"   负载均衡损失: {lb_loss.item():.6f}")
+    print(f"   门控权重均值: {moe_enhance._gate_weights.mean(dim=0)}")
 
     print("\n6. MoE融合模块测试:")
-    cross_attn = CrossAttentionExpert(C)
-    multi_scale = MultiScaleConvExpert(C)
-    channel_inter = ChannelInteractionExpert(C)
     moe_fusion = MoEFusion(C)
-
     f_p = torch.randn(B, C, H, W)
     f_v = torch.randn(B, C, H, W)
-    print(f"   跨注意力专家: ({f_p.shape}, {f_v.shape}) -> {cross_attn(f_p, f_v).shape}")
-    print(f"   多尺度卷积专家: ({f_p.shape}, {f_v.shape}) -> {multi_scale(f_p, f_v).shape}")
-    print(f"   通道交互专家: ({f_p.shape}, {f_v.shape}) -> {channel_inter(f_p, f_v).shape}")
-    print(f"   MoE融合: ({f_p.shape}, {f_v.shape}) -> {moe_fusion(f_p, f_v).shape}")
+    out = moe_fusion(f_p, f_v)
+    lb_loss = moe_fusion.load_balancing_loss()
+    print(f"   MoE融合: ({f_p.shape}, {f_v.shape}) -> {out.shape}")
+    print(f"   负载均衡损失: {lb_loss.item():.6f}")
+    print(f"   门控权重均值: {moe_fusion._gate_weights.mean(dim=0)}")
 
     print("\n7. 分类器测试:")
     dataset_cfg = config.get_dataset_config(config.DEFAULT_DATASET)
@@ -215,6 +255,7 @@ if __name__ == '__main__':
     results = []
 
     results.append(("模型前向传播", test_model_forward()))
+    results.append(("负载均衡损失", test_load_balancing_loss()))
     results.append(("各模块形状", test_module_shapes()))
     results.append(("数据加载器", test_dataloader()))
     results.append(("完整流程", test_full_pipeline()))

@@ -207,6 +207,8 @@ class MoEEnhancement(nn.Module):
     def __init__(self, channels, num_experts=3):
         super(MoEEnhancement, self).__init__()
         
+        self.num_experts = num_experts
+        
         self.experts = nn.ModuleList([
             HighFreqExpert(channels),
             MidFreqExpert(channels),
@@ -214,9 +216,17 @@ class MoEEnhancement(nn.Module):
         ])
         
         self.gate = GateNetwork(channels, num_experts)
+        self._gate_weights = None
+    
+    def load_balancing_loss(self):
+        if self._gate_weights is None:
+            return torch.tensor(0.0, device=next(self.parameters()).device)
+        f = self._gate_weights.mean(dim=0)
+        return self.num_experts * (f * f).sum() - 1.0
     
     def forward(self, x, return_gate_weights=False):
         weights = self.gate(x)
+        self._gate_weights = weights.detach()
         
         expert_outputs = [expert(x) for expert in self.experts]
         

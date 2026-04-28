@@ -145,6 +145,8 @@ class MoEFusion(nn.Module):
     def __init__(self, channels, num_experts=3):
         super(MoEFusion, self).__init__()
         
+        self.num_experts = num_experts
+        
         self.experts = nn.ModuleList([
             CrossAttentionExpert(channels),
             MultiScaleConvExpert(channels),
@@ -152,9 +154,17 @@ class MoEFusion(nn.Module):
         ])
         
         self.gate = FusionGateNetwork(channels, num_experts)
+        self._gate_weights = None
+    
+    def load_balancing_loss(self):
+        if self._gate_weights is None:
+            return torch.tensor(0.0, device=next(self.parameters()).device)
+        f = self._gate_weights.mean(dim=0)
+        return self.num_experts * (f * f).sum() - 1.0
     
     def forward(self, f_p, f_v, return_gate_weights=False):
         weights = self.gate(f_p, f_v)
+        self._gate_weights = weights.detach()
         
         expert_outputs = [expert(f_p, f_v) for expert in self.experts]
         

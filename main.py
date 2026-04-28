@@ -100,7 +100,7 @@ def main():
     
     if args.mode == 'train':
         from train import main as train_main
-        train_main(args.dataset, save_dir=save_dir)
+        train_main(args.dataset, save_dir=save_dir, checkpoint_path=args.checkpoint)
     
     elif args.mode == 'test':
         from test import main as test_main

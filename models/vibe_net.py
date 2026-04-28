@@ -22,6 +22,14 @@ class VIBENet(nn.Module):
 
         self.classifier = Classifier(feature_dim, num_classes)
 
+    def compute_load_balancing_loss(self):
+        lb_loss = (
+            self.print_enhancement.load_balancing_loss()
+            + self.vein_enhancement.load_balancing_loss()
+            + self.fusion.load_balancing_loss()
+        )
+        return lb_loss
+
     def forward(self, print_img, vein_img, return_gate_weights=False):
         print_feat, vein_feat = self.backbone(print_img, vein_img)
 

@@ -41,10 +41,14 @@ class Trainer:
         self.train_losses = []
         self.train_accs = []
         self.val_accs = []
+        self.train_ce_losses = []
+        self.train_lb_losses = []
     
     def train_epoch(self, epoch):
         self.model.train()
         running_loss = 0.0
+        running_ce_loss = 0.0
+        running_lb_loss = 0.0
         correct = 0
         total = 0
         
@@ -58,13 +62,17 @@ class Trainer:
             self.optimizer.zero_grad()
             
             outputs = self.model(print_img, vein_img)
-            loss = self.criterion(outputs, labels)
+            ce_loss = self.criterion(outputs, labels)
+            lb_loss = self.model.compute_load_balancing_loss()
+            loss = ce_loss + config.LOAD_BALANCE_WEIGHT * lb_loss
             
             loss.backward()
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
             self.optimizer.step()
             
             running_loss += loss.item()
+            running_ce_loss += ce_loss.item()
+            running_lb_loss += lb_loss.item()
             _, predicted = outputs.max(1)
             total += labels.size(0)
             correct += predicted.eq(labels).sum().item()
@@ -75,9 +83,11 @@ class Trainer:
             })
         
         epoch_loss = running_loss / len(self.train_loader)
+        epoch_ce_loss = running_ce_loss / len(self.train_loader)
+        epoch_lb_loss = running_lb_loss / len(self.train_loader)
         epoch_acc = 100. * correct / total
         
-        return epoch_loss, epoch_acc
+        return epoch_loss, epoch_acc, epoch_ce_loss, epoch_lb_loss
     
     def validate(self):
         self.model.eval()
@@ -108,7 +118,9 @@ class Trainer:
             'best_epoch': self.best_epoch,
             'train_losses': self.train_losses,
             'train_accs': self.train_accs,
-            'val_accs': self.val_accs
+            'val_accs': self.val_accs,
+            'train_ce_losses': self.train_ce_losses,
+            'train_lb_losses': self.train_lb_losses
         }
         
         path = os.path.join(self.save_dir, f'checkpoint_epoch_{epoch+1}.pth')
@@ -129,6 +141,8 @@ class Trainer:
         self.train_losses = checkpoint['train_losses']
         self.train_accs = checkpoint['train_accs']
         self.val_accs = checkpoint['val_accs']
+        self.train_ce_losses = checkpoint.get('train_ce_losses', [])
+        self.train_lb_losses = checkpoint.get('train_lb_losses', [])
         return checkpoint['epoch']
     
     def train(self, start_epoch=0):
@@ -142,7 +156,7 @@ class Trainer:
         for epoch in range(start_epoch, config.NUM_EPOCHS):
             epoch_start_time = time.time()
             
-            train_loss, train_acc = self.train_epoch(epoch)
+            train_loss, train_acc, train_ce_loss, train_lb_loss = self.train_epoch(epoch)
             val_acc = self.validate()
             
             self.scheduler.step()
@@ -150,11 +164,13 @@ class Trainer:
             self.train_losses.append(train_loss)
             self.train_accs.append(train_acc)
             self.val_accs.append(val_acc)
+            self.train_ce_losses.append(train_ce_loss)
+            self.train_lb_losses.append(train_lb_loss)
             
             epoch_time = time.time() - epoch_start_time
             
             print(f'\nEpoch {epoch+1}/{config.NUM_EPOCHS} - {epoch_time:.1f}s')
-            print(f'  训练损失: {train_loss:.4f}, 训练准确率: {train_acc:.2f}%')
+            print(f'  训练损失: {train_loss:.4f} (CE: {train_ce_loss:.4f}, LB: {train_lb_loss:.4f}), 训练准确率: {train_acc:.2f}%')
             print(f'  验证准确率: {val_acc:.2f}%')
             print(f'  学习率: {self.optimizer.param_groups[0]["lr"]:.6f}')
             
@@ -217,7 +233,7 @@ def plot_training_curves(train_losses, train_accs, val_accs, save_path='training
         print('matplotlib未安装，跳过绘图')
 
 
-def main(dataset_name=None, save_dir=None):
+def main(dataset_name=None, save_dir=None, checkpoint_path=None):
     if dataset_name is None:
         dataset_name = config.DEFAULT_DATASET
     
@@ -258,7 +274,17 @@ def main(dataset_name=None, save_dir=None):
     
     trainer = Trainer(model, train_loader, val_loader, device, save_dir)
     
-    train_losses, train_accs, val_accs = trainer.train()
+    start_epoch = 0
+    if checkpoint_path:
+        if os.path.exists(checkpoint_path):
+            start_epoch = trainer.load_checkpoint(checkpoint_path) + 1
+            print(f'从检查点恢复训练: {checkpoint_path}')
+            print(f'从第 {start_epoch + 1} 轮继续训练')
+        else:
+            print(f'警告: 检查点文件不存在: {checkpoint_path}')
+            print('将从零开始训练')
+    
+    train_losses, train_accs, val_accs = trainer.train(start_epoch=start_epoch)
     
     plot_training_curves(
         train_losses, train_accs, val_accs,
