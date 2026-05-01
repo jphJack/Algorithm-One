@@ -9,6 +9,19 @@ from torchvision.transforms import functional as F
 import config
 
 
+def read_rgb_image(path):
+    img = cv2.imread(path, cv2.IMREAD_COLOR)
+    if img is None:
+        raise FileNotFoundError(f"Image not found: {path}")
+    return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+
+def seed_worker(worker_id):
+    worker_seed = config.SEED + worker_id
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
+
+
 class TrainTransform:
     def __init__(self, img_size=(128, 128)):
         self.ToPILImage = transforms.ToPILImage()
@@ -18,7 +31,7 @@ class TrainTransform:
             brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1
         )
         self.normalize = transforms.Normalize(
-            [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
+            config.NORMALIZE_MEAN, config.NORMALIZE_STD
         )
 
     def __call__(self, img1, img2):
@@ -55,7 +68,7 @@ class TestTransform:
             transforms.ToPILImage(),
             transforms.Resize(img_size),
             transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            transforms.Normalize(config.NORMALIZE_MEAN, config.NORMALIZE_STD)
         ])
 
     def __call__(self, img):
@@ -107,10 +120,8 @@ class TrainDataset(Dataset):
             self.vein_root_dir, person_name, vein_img_path
         )
 
-        p_img = cv2.imread(p_img_item_path)
-        p_img = torch.tensor(p_img).to(torch.float).permute(2, 0, 1)
-        v_img = cv2.imread(v_img_item_path)
-        v_img = torch.tensor(v_img).to(torch.float).permute(2, 0, 1)
+        p_img = read_rgb_image(p_img_item_path)
+        v_img = read_rgb_image(v_img_item_path)
         p_img, v_img = self.transform(p_img, v_img)
 
         label = self.class_to_idx[person_name]
@@ -147,12 +158,10 @@ class TestDataset(Dataset):
     def __getitem__(self, idx):
         p_img_item_path, v_img_item_path, label = self.samples[idx]
 
-        p_img = cv2.imread(p_img_item_path)
-        p_img = torch.tensor(p_img).to(torch.float).permute(2, 0, 1)
+        p_img = read_rgb_image(p_img_item_path)
         p_img = self.transform(p_img)
 
-        v_img = cv2.imread(v_img_item_path)
-        v_img = torch.tensor(v_img).to(torch.float).permute(2, 0, 1)
+        v_img = read_rgb_image(v_img_item_path)
         v_img = self.transform(v_img)
 
         return p_img, v_img, label
@@ -174,12 +183,17 @@ def get_dataloader(dataset_name, mode='train', batch_size=32, num_workers=4, shu
         vein_dir = dataset_cfg['vein_test_dir']
         dataset = TestDataset(print_dir, vein_dir, img_size=img_size)
 
+    generator = torch.Generator()
+    generator.manual_seed(config.SEED)
+
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
         shuffle=shuffle,
         num_workers=num_workers,
-        pin_memory=True
+        pin_memory=True,
+        worker_init_fn=seed_worker,
+        generator=generator
     )
     return dataloader
 

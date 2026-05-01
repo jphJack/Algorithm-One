@@ -63,6 +63,13 @@ LEARNING_RATE = 1e-4
 NUM_EPOCHS = 100
 WEIGHT_DECAY = 1e-4
 
+SEED = 42
+DETERMINISTIC = True
+CUDNN_BENCHMARK = False
+
+NORMALIZE_MEAN = [0.485, 0.456, 0.406]
+NORMALIZE_STD = [0.229, 0.224, 0.225]
+
 FEATURE_DIM = 256
 NUM_EXPERTS = 3
 OUT_STAGES = [3, 4, 5]
@@ -77,6 +84,7 @@ def get_dataset_config(dataset_name):
 
 
 def get_save_dir(dataset_name):
-    return os.path.join(BASE_DIR, 'checkpoints3', dataset_name)
+    return os.path.join(BASE_DIR, 'checkpoints4', dataset_name)
 #checkpoints2表示的是骨干提取网络进行了三层提取
-#checkpoints3表示的是moe添加了负载平衡损失
+#checkpoints3表示的是moe添加了负载平衡损
+#checkpoints4表示数据预处理 + 负载均衡损失反传

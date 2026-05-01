@@ -1,5 +1,7 @@
 import os
 import time
+import random
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -12,6 +14,25 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from models.vibe_net import VIBENet
 from dataset import get_dataloader
 import config
+
+
+def seed_everything(seed, deterministic=True):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+    if deterministic:
+        os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        try:
+            torch.use_deterministic_algorithms(True)
+        except Exception:
+            pass
+    else:
+        torch.backends.cudnn.deterministic = False
+        torch.backends.cudnn.benchmark = config.CUDNN_BENCHMARK
 
 
 class Trainer:
@@ -236,6 +257,8 @@ def plot_training_curves(train_losses, train_accs, val_accs, save_path='training
 def main(dataset_name=None, save_dir=None, checkpoint_path=None):
     if dataset_name is None:
         dataset_name = config.DEFAULT_DATASET
+
+    seed_everything(config.SEED, deterministic=config.DETERMINISTIC)
     
     dataset_cfg = config.get_dataset_config(dataset_name)
     num_classes = dataset_cfg['num_classes']
@@ -247,6 +270,7 @@ def main(dataset_name=None, save_dir=None, checkpoint_path=None):
     print(f'数据集: {dataset_name}')
     print(f'类别数: {num_classes}')
     print(f'保存目录: {save_dir}')
+    print(f'随机种子: {config.SEED}, 确定性: {config.DETERMINISTIC}')
     
     train_loader = get_dataloader(
         dataset_name,

@@ -155,16 +155,18 @@ class MoEFusion(nn.Module):
         
         self.gate = FusionGateNetwork(channels, num_experts)
         self._gate_weights = None
+        self._gate_weights_for_loss = None
     
     def load_balancing_loss(self):
-        if self._gate_weights is None:
+        if self._gate_weights_for_loss is None:
             return torch.tensor(0.0, device=next(self.parameters()).device)
-        f = self._gate_weights.mean(dim=0)
+        f = self._gate_weights_for_loss.mean(dim=0)
         return self.num_experts * (f * f).sum() - 1.0
     
     def forward(self, f_p, f_v, return_gate_weights=False):
         weights = self.gate(f_p, f_v)
         self._gate_weights = weights.detach()
+        self._gate_weights_for_loss = weights
         
         expert_outputs = [expert(f_p, f_v) for expert in self.experts]
         
