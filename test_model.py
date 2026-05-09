@@ -21,7 +21,11 @@ def test_model_forward():
 
     model = VIBENet(
         num_classes=num_classes, feature_dim=config.FEATURE_DIM,
-        out_stages=config.OUT_STAGES, reducer_channels=config.REDUCER_CHANNELS
+        out_stages=config.OUT_STAGES, reducer_channels=config.REDUCER_CHANNELS,
+        classifier_embed_dim=config.CLASSIFIER_EMBED_DIM,
+        classifier_margin=config.ARC_MARGIN,
+        classifier_scale=config.ARC_SCALE,
+        classifier_dropout=config.CLASSIFIER_DROPOUT,
     )
     model.eval()
 
@@ -60,7 +64,11 @@ def test_load_balancing_loss():
 
     model = VIBENet(
         num_classes=num_classes, feature_dim=config.FEATURE_DIM,
-        out_stages=config.OUT_STAGES, reducer_channels=config.REDUCER_CHANNELS
+        out_stages=config.OUT_STAGES, reducer_channels=config.REDUCER_CHANNELS,
+        classifier_embed_dim=config.CLASSIFIER_EMBED_DIM,
+        classifier_margin=config.ARC_MARGIN,
+        classifier_scale=config.ARC_SCALE,
+        classifier_dropout=config.CLASSIFIER_DROPOUT,
     )
     model.eval()
 
@@ -134,7 +142,11 @@ def test_full_pipeline():
 
     model = VIBENet(
         num_classes=num_classes, feature_dim=config.FEATURE_DIM,
-        out_stages=config.OUT_STAGES, reducer_channels=config.REDUCER_CHANNELS
+        out_stages=config.OUT_STAGES, reducer_channels=config.REDUCER_CHANNELS,
+        classifier_embed_dim=config.CLASSIFIER_EMBED_DIM,
+        classifier_margin=config.ARC_MARGIN,
+        classifier_scale=config.ARC_SCALE,
+        classifier_dropout=config.CLASSIFIER_DROPOUT,
     )
     model.eval()
 

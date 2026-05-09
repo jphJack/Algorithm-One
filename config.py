@@ -70,11 +70,20 @@ CUDNN_BENCHMARK = False
 NORMALIZE_MEAN = [0.485, 0.456, 0.406]
 NORMALIZE_STD = [0.229, 0.224, 0.225]
 
+LABEL_SMOOTHING = 0.05
+WARMUP_EPOCHS = 5
+MIN_LR = 1e-6
+
 FEATURE_DIM = 256
 NUM_EXPERTS = 3
 OUT_STAGES = [3, 4, 5]
 REDUCER_CHANNELS = 64
 LOAD_BALANCE_WEIGHT = 0.01
+
+CLASSIFIER_EMBED_DIM = 256
+CLASSIFIER_DROPOUT = 0.5
+ARC_MARGIN = 0.5
+ARC_SCALE = 30.0
 
 
 def get_dataset_config(dataset_name):
@@ -84,7 +93,7 @@ def get_dataset_config(dataset_name):
 
 
 def get_save_dir(dataset_name):
-    return os.path.join(BASE_DIR, 'checkpoints4', dataset_name)
+    return os.path.join(BASE_DIR, 'checkpoints5', dataset_name)
 #checkpoints2表示的是骨干提取网络进行了三层提取
-#checkpoints3表示的是moe添加了负载平衡损
-#checkpoints4表示数据预处理 + 负载均衡损失反传
+#checkpoints4+3表示数据预处理 + 负载均衡损失反传
+#checkpoints5表示的是成更强判别头（ArcFace 风格）、训练策略小改（warmup+cosine + label smoothing）+ moe融合模块残差连接

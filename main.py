@@ -30,7 +30,11 @@ def demo_inference(dataset_name=None):
     
     model = VIBENet(
         num_classes=num_classes, feature_dim=config.FEATURE_DIM,
-        out_stages=config.OUT_STAGES, reducer_channels=config.REDUCER_CHANNELS
+        out_stages=config.OUT_STAGES, reducer_channels=config.REDUCER_CHANNELS,
+        classifier_embed_dim=config.CLASSIFIER_EMBED_DIM,
+        classifier_margin=config.ARC_MARGIN,
+        classifier_scale=config.ARC_SCALE,
+        classifier_dropout=config.CLASSIFIER_DROPOUT,
     )
     model = model.to(device)
     model.eval()

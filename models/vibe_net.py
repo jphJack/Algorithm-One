@@ -7,7 +7,17 @@ from .classifier import Classifier
 
 
 class VIBENet(nn.Module):
-    def __init__(self, num_classes=290, feature_dim=256, out_stages=None, reducer_channels=64):
+    def __init__(
+        self,
+        num_classes=290,
+        feature_dim=256,
+        out_stages=None,
+        reducer_channels=64,
+        classifier_embed_dim=256,
+        classifier_margin=0.5,
+        classifier_scale=30.0,
+        classifier_dropout=0.5,
+    ):
         super(VIBENet, self).__init__()
 
         self.backbone = DualStreamBackbone(
@@ -20,7 +30,14 @@ class VIBENet(nn.Module):
 
         self.fusion = MoEFusion(feature_dim, num_experts=3)
 
-        self.classifier = Classifier(feature_dim, num_classes)
+        self.classifier = Classifier(
+            feature_dim,
+            num_classes,
+            embed_dim=classifier_embed_dim,
+            margin=classifier_margin,
+            scale=classifier_scale,
+            dropout=classifier_dropout,
+        )
 
     def compute_load_balancing_loss(self):
         lb_loss = (
@@ -30,7 +47,7 @@ class VIBENet(nn.Module):
         )
         return lb_loss
 
-    def forward(self, print_img, vein_img, return_gate_weights=False):
+    def forward(self, print_img, vein_img, labels=None, return_gate_weights=False):
         print_feat, vein_feat = self.backbone(print_img, vein_img)
 
         if return_gate_weights:
@@ -55,7 +72,7 @@ class VIBENet(nn.Module):
         else:
             fused_feat = self.fusion(print_enhanced, vein_enhanced)
 
-        output = self.classifier(fused_feat)
+        output = self.classifier(fused_feat, labels=labels)
 
         if return_gate_weights:
             gate_weights = {

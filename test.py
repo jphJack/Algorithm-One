@@ -5,6 +5,7 @@ from tqdm import tqdm
 import numpy as np
 from sklearn.metrics import confusion_matrix, classification_report
 import sys
+import argparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -122,13 +123,21 @@ def analyze_results(preds, labels, num_classes):
     return cm, class_acc
 
 
-def main(dataset_name=None):
+def main(dataset_name=None, checkpoint_path=None):
     if dataset_name is None:
         dataset_name = config.DEFAULT_DATASET
     
     dataset_cfg = config.get_dataset_config(dataset_name)
     num_classes = dataset_cfg['num_classes']
-    save_dir = config.get_save_dir(dataset_name)
+    default_save_dir = config.get_save_dir(dataset_name)
+    
+    if checkpoint_path is None:
+        save_dir = default_save_dir
+        checkpoint_path = os.path.join(save_dir, 'best_model.pth')
+    else:
+        save_dir = os.path.dirname(checkpoint_path)
+    
+    os.makedirs(save_dir, exist_ok=True)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'使用设备: {device}')
@@ -143,16 +152,23 @@ def main(dataset_name=None):
         shuffle=False
     )
     
-    model = VIBENet(num_classes=num_classes, feature_dim=config.FEATURE_DIM)
+    model = VIBENet(
+        num_classes=num_classes,
+        feature_dim=config.FEATURE_DIM,
+        classifier_embed_dim=config.CLASSIFIER_EMBED_DIM,
+        classifier_margin=config.ARC_MARGIN,
+        classifier_scale=config.ARC_SCALE,
+        classifier_dropout=config.CLASSIFIER_DROPOUT,
+    )
     
     tester = Tester(model, test_loader, device)
     
-    checkpoint_path = os.path.join(save_dir, 'best_model.pth')
     if os.path.exists(checkpoint_path):
         tester.load_checkpoint(checkpoint_path)
     else:
-        print('警告: 未找到训练好的模型，使用随机初始化的模型进行测试')
+        print(f'警告: 未找到训练好的模型，使用随机初始化的模型进行测试')
         print(f'请先运行 train.py 进行训练')
+        print(f'期望路径: {checkpoint_path}')
     
     accuracy, preds, labels = tester.evaluate()
     
@@ -166,4 +182,9 @@ def main(dataset_name=None):
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description='VIBE生物特征识别测试脚本')
+    parser.add_argument('--dataset', type=str, default=None, help='数据集名称 (如: HandsData, CASIA, QH, TJ, CUMT2)')
+    parser.add_argument('--checkpoint', type=str, default=None, help='模型checkpoint路径 (如: checkpoints4/HandsData/best_model.pth)')
+    args = parser.parse_args()
+    
+    main(dataset_name=args.dataset, checkpoint_path=args.checkpoint)

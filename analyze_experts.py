@@ -28,7 +28,14 @@ def analyze_expert_weights(dataset_name=None, save_dir=None):
     print(f'数据集: {dataset_name}')
     print(f'类别数: {num_classes}')
     
-    model = VIBENet(num_classes=num_classes, feature_dim=config.FEATURE_DIM)
+    model = VIBENet(
+        num_classes=num_classes,
+        feature_dim=config.FEATURE_DIM,
+        classifier_embed_dim=config.CLASSIFIER_EMBED_DIM,
+        classifier_margin=config.ARC_MARGIN,
+        classifier_scale=config.ARC_SCALE,
+        classifier_dropout=config.CLASSIFIER_DROPOUT,
+    )
     
     checkpoint_path = os.path.join(save_dir, 'best_model.pth')
     if os.path.exists(checkpoint_path):

@@ -42,6 +42,9 @@ class CrossAttentionExpert(nn.Module):
         fused = torch.cat([f_p, f_v, cross_p2v, cross_v2p], dim=1)
         out = self.output_conv(fused)
         out = self.bn(out)
+
+        residual = 0.5 * (f_p + f_v)
+        out = out + residual
         
         return out
 
