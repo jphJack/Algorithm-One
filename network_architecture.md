@@ -38,20 +38,12 @@ VIBE（Vein and Palm Print Biometric Enhancement）网络是一个基于掌纹�
 │  │  骨干网络P   │    │  骨干网络V   │     ← 双支流骨干网络         │
 │  │ (独立参数)   │    │ (独立参数)   │       Stage 1-5 逐层下采样   │
 │  │ Stage 3/4/5  │    │ Stage 3/4/5  │                              │
+│  │ → MoE增强(逐层)│   │ → MoE增强(逐层)│                            │
 │  └──────┬───────┘    └──────┬───────┘                              │
 │         │                    │                                      │
 │         ▼                    ▼                                      │
 │  ┌──────────────┐    ┌──────────────┐                              │
-│  │ 多尺度提取器P│    │ 多尺度提取器V│     ← 多尺度特征提取         │
-│  │ Reducer +    │    │ Reducer +    │       Stage 3/4/5 → 统一融合 │
-│  │ Concat + Proj│    │ Concat + Proj│                              │
-│  └──────┬───────┘    └──────┬───────┘                              │
-│         │                    │                                      │
-│         ▼                    ▼                                      │
-│  ┌──────────────┐    ┌──────────────┐                              │
-│  │ MoE特征增强P │    │ MoE特征增强V │     ← MoE特征增强模块        │
-│  │ (高频/中频/  │    │ (高频/中频/  │       含负载均衡损失          │
-│  │  低频专家)   │    │  低频专家)   │                              │
+│  │ Stage5 MoE输出│    │ Stage5 MoE输出│     ← 仅使用第5层MoE特征     │
 │  └──────┬───────┘    └──────┬───────┘                              │
 │         │                    │                                      │
 │         └────────┬───────────┘                                      │
@@ -77,7 +69,7 @@ VIBE（Vein and Palm Print Biometric Enhancement）网络是一个基于掌纹�
 
 ### 3.1 双支流骨干网络 (DualStreamBackbone)
 
-骨干网络采用轻量化CNN架构，分别处理掌纹和掌静脉图像。两个支流具有独立参数，以适应不同模态的特征分布。每个支流输出 Stage 3、4、5 的多尺度特征图，通过 MultiScaleFeatureExtractor 融合为统一特征。
+骨干网络采用轻量化CNN架构，分别处理掌纹和掌静脉图像。两个支流具有独立参数，以适应不同模态的特征分布。每个支流输出 Stage 3、4、5 的多尺度特征图，并在 Stage 3/4/5 后分别通过 MoE特征增强模块进行增强；主流程直接取 Stage 5 的 MoE 增强输出进入 MoE 融合模块。
 
 #### 3.1.1 单支流骨干网络结构 (LightweightBackbone)
 
@@ -126,6 +118,8 @@ VIBE（Vein and Palm Print Biometric Enhancement）网络是一个基于掌纹�
 每个 Stage 包含 2 个 ConvBlock：第一个 stride=2 进行空间下采样，第二个 stride=1 精炼特征。
 
 #### 3.1.2 多尺度特征提取器 (MultiScaleFeatureExtractor)
+
+该模块当前不在主干到融合的默认路径中使用，可用于消融实验或可选的多尺度特征聚合分支。
 
 ```
 输入: features = {3: [B,128,H/8,W/8], 4: [B,256,H/16,W/16], 5: [B,256,H/32,W/32]}
@@ -187,17 +181,23 @@ VIBE（Vein and Palm Print Biometric Enhancement）网络是一个基于掌纹�
          │                              │
          ▼                              ▼
 ┌───────────────────┐          ┌───────────────────┐
-│ print_extractor   │          │ vein_extractor    │
-│ (MultiScale)      │          │ (MultiScale)      │
+│ print_stage_moe   │          │ vein_stage_moe    │
+│ (Stage 3/4/5)     │          │ (Stage 3/4/5)     │
 └────────┬──────────┘          └────────┬──────────┘
          │                              │
          ▼                              ▼
-print_feat [B,256,H/8,W/8]    vein_feat [B,256,H/8,W/8]
+┌───────────────────┐          ┌───────────────────┐
+│ select_stage5     │          │ select_stage5     │
+│ (MoE输出)         │          │ (MoE输出)         │
+└────────┬──────────┘          └────────┬──────────┘
+         │                              │
+         ▼                              ▼
+print_feat [B,256,H/32,W/32]   vein_feat [B,256,H/32,W/32]
 ```
 
 ### 3.2 MoE特征增强模块 (MoEEnhancement)
 
-该模块为每种模态构建独立的专家网络池，包含三个并行专家：高频专家、中频专家和低频专家。门控网络根据输入特征动态生成权重，加权融合三个专家的输出。模块内置负载均衡损失，防止专家坍塌。
+该模块为每种模态构建独立的专家网络池，包含三个并行专家：高频专家、中频专家和低频专家。门控网络根据输入特征动态生成权重，加权融合三个专家的输出。模块内置负载均衡损失，防止专家坍塌。当前在骨干网络的 Stage 3/4/5 后分别调用，并使用 Stage 5 的 MoE 输出进入融合模块。
 
 #### 3.2.1 高频信息处理专家 (HighFreqExpert)
 
@@ -609,14 +609,14 @@ L_lb = N_experts × Σ(f_i²) - 1
 总损失由三部分组成：
 
 ```
-L_total = L_ce + λ_lb × (L_lb_enhance_p + L_lb_enhance_v + L_lb_fusion)
+L_total = L_ce + λ_lb × (sum_{s in {3,4,5}} (L_lb_enhance_p^s + L_lb_enhance_v^s) + L_lb_fusion)
 ```
 
 | 损失项 | 说明 | 权重 |
 |--------|------|------|
 | L_ce | 交叉熵损失 + Label Smoothing (0.05) | 1.0 |
-| L_lb_enhance_p | 掌纹增强模块负载均衡损失 | 0.01 |
-| L_lb_enhance_v | 静脉增强模块负载均衡损失 | 0.01 |
+| L_lb_enhance_p^s | 掌纹增强模块负载均衡损失 (Stage 3/4/5 求和) | 0.01 |
+| L_lb_enhance_v^s | 静脉增强模块负载均衡损失 (Stage 3/4/5 求和) | 0.01 |
 | L_lb_fusion | 融合模块负载均衡损失 | 0.01 |
 
 ### 4.2 优化器与学习率
@@ -681,7 +681,6 @@ L_total = L_ce + λ_lb × (L_lb_enhance_p + L_lb_enhance_v + L_lb_fusion)
 | Stage 3 (输出) | [B, 128, 16, 16] | [B, 128, 16, 16] |
 | Stage 4 (输出) | [B, 256, 8, 8] | [B, 256, 8, 8] |
 | Stage 5 (输出) | [B, 256, 4, 4] | [B, 256, 4, 4] |
-| 多尺度提取后 | [B, 256, 16, 16] | [B, 256, 16, 16] |
-| MoE增强后 | [B, 256, 16, 16] | [B, 256, 16, 16] |
-| MoE融合后 | [B, 256, 16, 16] | - |
+| Stage 5 MoE增强后 | [B, 256, 4, 4] | [B, 256, 4, 4] |
+| MoE融合后 | [B, 256, 4, 4] | - |
 | 分类输出 | [B, num_classes] | - |

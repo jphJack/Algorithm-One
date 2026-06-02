@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 from .backbone import DualStreamBackbone
-from .moe_enhancement import MoEEnhancement
 from .moe_fusion import MoEFusion
 from .classifier import Classifier
 
@@ -13,6 +12,8 @@ class VIBENet(nn.Module):
         feature_dim=256,
         out_stages=None,
         reducer_channels=64,
+        moe_num_experts=3,
+        use_multiscale_extractor=False,
         classifier_embed_dim=256,
         classifier_margin=0.5,
         classifier_scale=30.0,
@@ -22,13 +23,13 @@ class VIBENet(nn.Module):
 
         self.backbone = DualStreamBackbone(
             in_channels=3, feature_dim=feature_dim,
-            out_stages=out_stages, reducer_channels=reducer_channels
+            out_stages=out_stages, reducer_channels=reducer_channels,
+            moe_num_experts=moe_num_experts,
+            enable_stage_enhancement=True,
+            use_multiscale_extractor=use_multiscale_extractor,
         )
 
-        self.print_enhancement = MoEEnhancement(feature_dim, num_experts=3)
-        self.vein_enhancement = MoEEnhancement(feature_dim, num_experts=3)
-
-        self.fusion = MoEFusion(feature_dim, num_experts=3)
+        self.fusion = MoEFusion(feature_dim, num_experts=moe_num_experts)
 
         self.classifier = Classifier(
             feature_dim,
@@ -40,48 +41,48 @@ class VIBENet(nn.Module):
         )
 
     def compute_load_balancing_loss(self):
-        lb_loss = (
-            self.print_enhancement.load_balancing_loss()
-            + self.vein_enhancement.load_balancing_loss()
-            + self.fusion.load_balancing_loss()
-        )
-        return lb_loss
+        return self.backbone.load_balancing_loss() + self.fusion.load_balancing_loss()
 
-    def forward(self, print_img, vein_img, labels=None, return_gate_weights=False):
-        print_feat, vein_feat = self.backbone(print_img, vein_img)
-
+    def forward(self, print_img, vein_img, labels=None, return_gate_weights=False, return_embedding=False):
         if return_gate_weights:
-            print_enhanced, print_gate_weights = self.print_enhancement(print_feat, return_gate_weights=True)
-            vein_enhanced, vein_gate_weights = self.vein_enhancement(vein_feat, return_gate_weights=True)
-        else:
-            print_enhanced = self.print_enhancement(print_feat)
-            vein_enhanced = self.vein_enhancement(vein_feat)
-
-        if print_enhanced.shape[2:] != vein_enhanced.shape[2:]:
-            target_h = min(print_enhanced.shape[2], vein_enhanced.shape[2])
-            target_w = min(print_enhanced.shape[3], vein_enhanced.shape[3])
-            print_enhanced = nn.functional.interpolate(
-                print_enhanced, size=(target_h, target_w), mode='bilinear', align_corners=True
+            print_feat, vein_feat, stage_gate_weights = self.backbone(
+                print_img, vein_img, return_gate_weights=True
             )
-            vein_enhanced = nn.functional.interpolate(
-                vein_enhanced, size=(target_h, target_w), mode='bilinear', align_corners=True
+        else:
+            print_feat, vein_feat = self.backbone(print_img, vein_img)
+
+        if print_feat.shape[2:] != vein_feat.shape[2:]:
+            target_h = min(print_feat.shape[2], vein_feat.shape[2])
+            target_w = min(print_feat.shape[3], vein_feat.shape[3])
+            print_feat = nn.functional.interpolate(
+                print_feat, size=(target_h, target_w), mode='bilinear', align_corners=True
+            )
+            vein_feat = nn.functional.interpolate(
+                vein_feat, size=(target_h, target_w), mode='bilinear', align_corners=True
             )
 
         if return_gate_weights:
-            fused_feat, fusion_gate_weights = self.fusion(print_enhanced, vein_enhanced, return_gate_weights=True)
+            fused_feat, fusion_gate_weights = self.fusion(print_feat, vein_feat, return_gate_weights=True)
         else:
-            fused_feat = self.fusion(print_enhanced, vein_enhanced)
+            fused_feat = self.fusion(print_feat, vein_feat)
 
-        output = self.classifier(fused_feat, labels=labels)
+        if return_embedding:
+            output, embedding = self.classifier(fused_feat, labels=labels, return_embedding=True)
+        else:
+            output = self.classifier(fused_feat, labels=labels)
 
         if return_gate_weights:
             gate_weights = {
-                'print_enhancement': print_gate_weights,
-                'vein_enhancement': vein_gate_weights,
-                'fusion': fusion_gate_weights
+                'print_stage_enhancement': stage_gate_weights.get('print', {}),
+                'vein_stage_enhancement': stage_gate_weights.get('vein', {}),
+                'fusion': fusion_gate_weights,
             }
+            if return_embedding:
+                return output, gate_weights, embedding
             return output, gate_weights
 
+        if return_embedding:
+            return output, embedding
         return output
 
 
@@ -99,7 +100,11 @@ if __name__ == '__main__':
     output, gate_weights = model(print_img, vein_img, return_gate_weights=True)
     print(f"\n门控权重:")
     for name, weights in gate_weights.items():
-        print(f"  {name}: {weights.shape} -> {weights}")
+        if isinstance(weights, dict):
+            for stage, stage_weights in weights.items():
+                print(f"  {name} stage {stage}: {stage_weights.shape} -> {stage_weights}")
+        else:
+            print(f"  {name}: {weights.shape} -> {weights}")
 
     total_params = sum(p.numel() for p in model.parameters())
     print(f"\n总参数量: {total_params:,}")

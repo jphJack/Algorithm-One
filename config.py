@@ -4,13 +4,18 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 DATASET_CONFIG = {
     'HandsData': {
-        'data_dir': os.path.join(BASE_DIR, 'HandsData'),
-        'print_train_dir': os.path.join(BASE_DIR, 'HandsData', 'print-train'),
-        'vein_train_dir': os.path.join(BASE_DIR, 'HandsData', 'vein-train'),
-        'print_test_dir': os.path.join(BASE_DIR, 'HandsData', 'print-test'),
-        'vein_test_dir': os.path.join(BASE_DIR, 'HandsData', 'vein-test'),
+        # 'data_dir': os.path.join(BASE_DIR, 'HandsData'),
+        # 'print_train_dir': os.path.join(BASE_DIR, 'HandsData', 'print-train'),
+        # 'vein_train_dir': os.path.join(BASE_DIR, 'HandsData', 'vein-train'),
+        # 'print_test_dir': os.path.join(BASE_DIR, 'HandsData', 'print-test'),
+        # 'vein_test_dir': os.path.join(BASE_DIR, 'HandsData', 'vein-test'),
+        'data_dir': r'D:\code\plam-vein\Graduate-code\code-one\HandsData',
+        'print_train_dir': os.path.join(r'D:\code\plam-vein\Graduate-code\code-one\HandsData', 'print-train'),
+        'vein_train_dir': os.path.join(r'D:\code\plam-vein\Graduate-code\code-one\HandsData', 'vein-train'),
+        'print_test_dir': os.path.join(r'D:\code\plam-vein\Graduate-code\code-one\HandsData', 'print-test'),
+        'vein_test_dir': os.path.join(r'D:\code\plam-vein\Graduate-code\code-one\HandsData', 'vein-test'),
         'num_classes': 290,
-        'img_size': (128, 128),
+        'img_size': (160, 160),
         'in_channels': 3,
     },
     'CASIA': {
@@ -24,33 +29,43 @@ DATASET_CONFIG = {
         'in_channels': 3,
     },
     'QH': {
-        'data_dir': os.path.join(BASE_DIR, 'data2', 'QH'),
-        'print_train_dir': os.path.join(BASE_DIR, 'data2', 'QH', 'print-train'),
-        'vein_train_dir': os.path.join(BASE_DIR, 'data2', 'QH', 'vein-train'),
-        'print_test_dir': os.path.join(BASE_DIR, 'data2', 'QH', 'print-test'),
-        'vein_test_dir': os.path.join(BASE_DIR, 'data2', 'QH', 'vein-test'),
+        'data_dir': r'D:\code\plam-vein\Graduate-code\code-one\data2\QH',
+        'print_train_dir': os.path.join(r'D:\code\plam-vein\Graduate-code\code-one\data2\QH', 'print-train'),
+        'vein_train_dir': os.path.join(r'D:\code\plam-vein\Graduate-code\code-one\data2\QH', 'vein-train'),
+        'print_test_dir': os.path.join(r'D:\code\plam-vein\Graduate-code\code-one\data2\QH', 'print-test'),
+        'vein_test_dir': os.path.join(r'D:\code\plam-vein\Graduate-code\code-one\data2\QH', 'vein-test'),
         'num_classes': 500,
         'img_size': (128, 128),
         'in_channels': 3,
     },
     'TJ': {
-        'data_dir': os.path.join(BASE_DIR, 'data2', 'TJ'),
-        'print_train_dir': os.path.join(BASE_DIR, 'data2', 'TJ', 'print-train'),
-        'vein_train_dir': os.path.join(BASE_DIR, 'data2', 'TJ', 'vein-train'),
-        'print_test_dir': os.path.join(BASE_DIR, 'data2', 'TJ', 'print-test'),
-        'vein_test_dir': os.path.join(BASE_DIR, 'data2', 'TJ', 'vein-test'),
+        # 'data_dir': os.path.join(BASE_DIR, 'data2', 'TJ'),
+        # 'print_train_dir': os.path.join(BASE_DIR, 'data2', 'TJ', 'print-train'),
+        # 'vein_train_dir': os.path.join(BASE_DIR, 'data2', 'TJ', 'vein-train'),
+        # 'print_test_dir': os.path.join(BASE_DIR, 'data2', 'TJ', 'print-test'),
+        # 'vein_test_dir': os.path.join(BASE_DIR, 'data2', 'TJ', 'vein-test'),
+        'data_dir': r'D:\code\plam-vein\Graduate-code\code-one\data2\TJ',
+        'print_train_dir': os.path.join(r'D:\code\plam-vein\Graduate-code\code-one\data2\TJ', 'print-train'),
+        'vein_train_dir': os.path.join(r'D:\code\plam-vein\Graduate-code\code-one\data2\TJ', 'vein-train'),
+        'print_test_dir': os.path.join(r'D:\code\plam-vein\Graduate-code\code-one\data2\TJ', 'print-test'),
+        'vein_test_dir': os.path.join(r'D:\code\plam-vein\Graduate-code\code-one\data2\TJ', 'vein-test'),
         'num_classes': 600,
         'img_size': (128, 128),
         'in_channels': 3,
     },
     'CUMT2': {
-        'data_dir': os.path.join(BASE_DIR, 'data2', 'CUMT2'),
-        'print_train_dir': os.path.join(BASE_DIR, 'data2', 'CUMT2', 'print_train'),
-        'vein_train_dir': os.path.join(BASE_DIR, 'data2', 'CUMT2', 'vein_train'),
-        'print_test_dir': os.path.join(BASE_DIR, 'data2', 'CUMT2', 'print_test'),
-        'vein_test_dir': os.path.join(BASE_DIR, 'data2', 'CUMT2', 'vein_test'),
+        # 'data_dir': os.path.join(BASE_DIR, 'data2', 'CUMT2'),
+        # 'print_train_dir': os.path.join(BASE_DIR, 'data2', 'CUMT2', 'print_train'),
+        # 'vein_train_dir': os.path.join(BASE_DIR, 'data2', 'CUMT2', 'vein_train'),
+        # 'print_test_dir': os.path.join(BASE_DIR, 'data2', 'CUMT2', 'print_test'),
+        # 'vein_test_dir': os.path.join(BASE_DIR, 'data2', 'CUMT2', 'vein_test'),
+        'data_dir': r'D:\code\plam-vein\Graduate-code\code-one\data2\CUMT2',
+        'print_train_dir': os.path.join(r'D:\code\plam-vein\Graduate-code\code-one\data2\CUMT2', 'print_train'),
+        'vein_train_dir': os.path.join(r'D:\code\plam-vein\Graduate-code\code-one\data2\CUMT2', 'vein_train'),
+        'print_test_dir': os.path.join(r'D:\code\plam-vein\Graduate-code\code-one\data2\CUMT2', 'print_test'),
+        'vein_test_dir': os.path.join(r'D:\code\plam-vein\Graduate-code\code-one\data2\CUMT2', 'vein_test'),
         'num_classes': 532,
-        'img_size': (128, 128),
+        'img_size': (160, 160),
         'in_channels': 3,
     },
 }
@@ -93,7 +108,7 @@ def get_dataset_config(dataset_name):
 
 
 def get_save_dir(dataset_name):
-    return os.path.join(BASE_DIR, 'checkpoints5', dataset_name)
-#checkpoints2表示的是骨干提取网络进行了三层提取
-#checkpoints4+3表示数据预处理 + 负载均衡损失反传
-#checkpoints5表示的是成更强判别头（ArcFace 风格）、训练策略小改（warmup+cosine + label smoothing）+ moe融合模块残差连接
+    return os.path.join(BASE_DIR, 'checkpoints6', dataset_name)
+
+#checkpoints5表示的是三层moe
+#checkpoints6表示的是cumt2输入分辨率160x160的版本

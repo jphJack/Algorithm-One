@@ -86,7 +86,8 @@ venv.bak/
 
 # IDE
 .idea/
-vscode/
+.vscode/
+.claude/
 *.swp
 *.swo
 *~
@@ -109,6 +110,9 @@ logs/
 # Data directories
 HandsData/
 checkpoints/
+checkpoints5/
+checkpoints6/
+data/
 
 # Image and document files
 *.png

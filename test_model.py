@@ -86,8 +86,17 @@ def test_load_balancing_loss():
     assert lb_loss.item() >= -1e-6, f"负载均衡损失不应为负数: {lb_loss.item()}"
 
     print(f"\n各MoE模块门控权重分布:")
-    print(f"  掌纹增强: {model.print_enhancement._gate_weights.mean(dim=0)}")
-    print(f"  掌静脉增强: {model.vein_enhancement._gate_weights.mean(dim=0)}")
+    stage_keys = sorted(config.OUT_STAGES)
+    for stage in stage_keys:
+        print(
+            f"  掌纹增强 Stage {stage}: "
+            f"{model.backbone.print_stage_enhancers[str(stage)]._gate_weights.mean(dim=0)}"
+        )
+    for stage in stage_keys:
+        print(
+            f"  掌静脉增强 Stage {stage}: "
+            f"{model.backbone.vein_stage_enhancers[str(stage)]._gate_weights.mean(dim=0)}"
+        )
     print(f"  融合模块: {model.fusion._gate_weights.mean(dim=0)}")
 
     print("\n✓ 负载均衡损失测试通过!")

@@ -59,8 +59,10 @@ def analyze_expert_weights(dataset_name=None, save_dir=None):
         shuffle=False
     )
     
-    all_print_gate_weights = []
-    all_vein_gate_weights = []
+    stage_keys = sorted(config.OUT_STAGES)
+
+    all_print_gate_weights = {stage: [] for stage in stage_keys}
+    all_vein_gate_weights = {stage: [] for stage in stage_keys}
     all_fusion_gate_weights = []
     all_labels = []
     all_preds = []
@@ -80,14 +82,17 @@ def analyze_expert_weights(dataset_name=None, save_dir=None):
             total += labels.size(0)
             correct += predicted.eq(labels.to(device)).sum().item()
             
-            all_print_gate_weights.append(gate_weights['print_enhancement'].cpu().numpy())
-            all_vein_gate_weights.append(gate_weights['vein_enhancement'].cpu().numpy())
+            print_stage_weights = gate_weights['print_stage_enhancement']
+            vein_stage_weights = gate_weights['vein_stage_enhancement']
+            for stage in stage_keys:
+                all_print_gate_weights[stage].append(print_stage_weights[stage].cpu().numpy())
+                all_vein_gate_weights[stage].append(vein_stage_weights[stage].cpu().numpy())
             all_fusion_gate_weights.append(gate_weights['fusion'].cpu().numpy())
             all_labels.extend(labels.numpy())
             all_preds.extend(predicted.cpu().numpy())
     
-    print_gate = np.concatenate(all_print_gate_weights, axis=0)
-    vein_gate = np.concatenate(all_vein_gate_weights, axis=0)
+    print_gate = {stage: np.concatenate(all_print_gate_weights[stage], axis=0) for stage in stage_keys}
+    vein_gate = {stage: np.concatenate(all_vein_gate_weights[stage], axis=0) for stage in stage_keys}
     fusion_gate = np.concatenate(all_fusion_gate_weights, axis=0)
     all_labels = np.array(all_labels)
     all_preds = np.array(all_preds)
@@ -99,18 +104,20 @@ def analyze_expert_weights(dataset_name=None, save_dir=None):
     print('MoE专家权重分析结果')
     print('=' * 70)
     
-    print('\n--- 掌纹MoE特征增强模块 (Print Enhancement) ---')
-    _print_gate_stats(print_gate, ENHANCEMENT_EXPERT_NAMES, all_labels, all_preds)
-    
-    print('\n--- 掌静脉MoE特征增强模块 (Vein Enhancement) ---')
-    _print_gate_stats(vein_gate, ENHANCEMENT_EXPERT_NAMES, all_labels, all_preds)
+    for stage in stage_keys:
+        print(f'\n--- 掌纹MoE特征增强模块 (Stage {stage}) ---')
+        _print_gate_stats(print_gate[stage], ENHANCEMENT_EXPERT_NAMES, all_labels, all_preds)
+
+    for stage in stage_keys:
+        print(f'\n--- 掌静脉MoE特征增强模块 (Stage {stage}) ---')
+        _print_gate_stats(vein_gate[stage], ENHANCEMENT_EXPERT_NAMES, all_labels, all_preds)
     
     print('\n--- MoE融合模块 (Fusion) ---')
     _print_gate_stats(fusion_gate, FUSION_EXPERT_NAMES, all_labels, all_preds)
     
-    _plot_expert_weights(print_gate, vein_gate, fusion_gate, save_dir)
-    
-    _save_weight_data(print_gate, vein_gate, fusion_gate, all_labels, all_preds, save_dir)
+    _plot_expert_weights(print_gate, vein_gate, fusion_gate, save_dir, stage_keys)
+
+    _save_weight_data(print_gate, vein_gate, fusion_gate, all_labels, all_preds, save_dir, stage_keys)
     
     print(f'\n分析完成！结果已保存到: {save_dir}')
 
@@ -141,7 +148,7 @@ def _print_gate_stats(gate_weights, expert_names, labels, preds):
             print(f'    {name}: {wrong_weights[i]:.4f}')
 
 
-def _plot_expert_weights(print_gate, vein_gate, fusion_gate, save_dir):
+def _plot_expert_weights(print_gate, vein_gate, fusion_gate, save_dir, stage_keys):
     try:
         import matplotlib
         matplotlib.use('Agg')
@@ -152,56 +159,106 @@ def _plot_expert_weights(print_gate, vein_gate, fusion_gate, save_dir):
         plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans']
         plt.rcParams['axes.unicode_minus'] = False
         
-        fig, axes = plt.subplots(2, 3, figsize=(18, 10))
-        
-        gate_data = [
-            ('Print Enhancement', print_gate, ENHANCEMENT_EXPERT_NAMES),
-            ('Vein Enhancement', vein_gate, ENHANCEMENT_EXPERT_NAMES),
-            ('Fusion', fusion_gate, FUSION_EXPERT_NAMES),
-        ]
-        
-        for col, (title, gate, names) in enumerate(gate_data):
-            ax = axes[0, col]
-            mean_w = gate.mean(axis=0)
-            std_w = gate.std(axis=0)
-            bars = ax.bar(names, mean_w, yerr=std_w, capsize=5, alpha=0.7,
-                          color=['#2196F3', '#4CAF50', '#FF9800'])
-            ax.set_ylabel('Weight')
-            ax.set_title(f'{title} - Mean Expert Weights')
-            ax.set_ylim(0, max(mean_w + std_w) * 1.3)
-            for bar, w in zip(bars, mean_w):
-                ax.text(bar.get_x() + bar.get_width()/2., bar.get_height() + 0.01,
-                        f'{w:.3f}', ha='center', va='bottom', fontsize=9)
-            
-            ax2 = axes[1, col]
-            ax2.boxplot([gate[:, i] for i in range(len(names))],
-                        labels=names, patch_artist=True)
-            colors = ['#2196F3', '#4CAF50', '#FF9800']
-            for patch, color in zip(ax2.patches, colors):
-                patch.set_facecolor(color)
-                patch.set_alpha(0.7)
-            ax2.set_ylabel('Weight')
-            ax2.set_title(f'{title} - Weight Distribution')
-        
-        plt.tight_layout()
-        save_path = os.path.join(save_dir, 'expert_weights_analysis.png')
-        plt.savefig(save_path, dpi=150)
-        plt.close()
-        print(f'\n专家权重分析图已保存到: {save_path}')
+        _plot_stage_gate_grid(
+            print_gate, stage_keys, ENHANCEMENT_EXPERT_NAMES,
+            title_prefix='Print Enhancement',
+            save_path=os.path.join(save_dir, 'expert_weights_print.png')
+        )
+        _plot_stage_gate_grid(
+            vein_gate, stage_keys, ENHANCEMENT_EXPERT_NAMES,
+            title_prefix='Vein Enhancement',
+            save_path=os.path.join(save_dir, 'expert_weights_vein.png')
+        )
+        _plot_single_gate(
+            fusion_gate, FUSION_EXPERT_NAMES,
+            title='Fusion',
+            save_path=os.path.join(save_dir, 'expert_weights_fusion.png')
+        )
     except ImportError:
         print('matplotlib未安装，跳过绘图')
 
 
-def _save_weight_data(print_gate, vein_gate, fusion_gate, labels, preds, save_dir):
+def _plot_stage_gate_grid(gate_by_stage, stage_keys, names, title_prefix, save_path):
+    import matplotlib.pyplot as plt
+
+    num_cols = len(stage_keys)
+    fig, axes = plt.subplots(2, num_cols, figsize=(6 * num_cols, 8))
+    if num_cols == 1:
+        axes = axes.reshape(2, 1)
+
+    colors = ['#2196F3', '#4CAF50', '#FF9800']
+    for col, stage in enumerate(stage_keys):
+        gate = gate_by_stage[stage]
+        mean_w = gate.mean(axis=0)
+        std_w = gate.std(axis=0)
+
+        ax = axes[0, col]
+        bars = ax.bar(names, mean_w, yerr=std_w, capsize=5, alpha=0.7, color=colors)
+        ax.set_ylabel('Weight')
+        ax.set_title(f'{title_prefix} - Stage {stage} Mean Weights')
+        ax.set_ylim(0, max(mean_w + std_w) * 1.3)
+        for bar, w in zip(bars, mean_w):
+            ax.text(bar.get_x() + bar.get_width() / 2.0, bar.get_height() + 0.01,
+                    f'{w:.3f}', ha='center', va='bottom', fontsize=9)
+
+        ax2 = axes[1, col]
+        ax2.boxplot([gate[:, i] for i in range(len(names))], labels=names, patch_artist=True)
+        for patch, color in zip(ax2.patches, colors):
+            patch.set_facecolor(color)
+            patch.set_alpha(0.7)
+        ax2.set_ylabel('Weight')
+        ax2.set_title(f'{title_prefix} - Stage {stage} Distribution')
+
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=150)
+    plt.close()
+    print(f'\n专家权重分析图已保存到: {save_path}')
+
+
+def _plot_single_gate(gate, names, title, save_path):
+    import matplotlib.pyplot as plt
+
+    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+    mean_w = gate.mean(axis=0)
+    std_w = gate.std(axis=0)
+    colors = ['#2196F3', '#4CAF50', '#FF9800']
+
+    bars = axes[0].bar(names, mean_w, yerr=std_w, capsize=5, alpha=0.7, color=colors)
+    axes[0].set_ylabel('Weight')
+    axes[0].set_title(f'{title} - Mean Expert Weights')
+    axes[0].set_ylim(0, max(mean_w + std_w) * 1.3)
+    for bar, w in zip(bars, mean_w):
+        axes[0].text(bar.get_x() + bar.get_width() / 2.0, bar.get_height() + 0.01,
+                     f'{w:.3f}', ha='center', va='bottom', fontsize=9)
+
+    axes[1].boxplot([gate[:, i] for i in range(len(names))], labels=names, patch_artist=True)
+    for patch, color in zip(axes[1].patches, colors):
+        patch.set_facecolor(color)
+        patch.set_alpha(0.7)
+    axes[1].set_ylabel('Weight')
+    axes[1].set_title(f'{title} - Weight Distribution')
+
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=150)
+    plt.close()
+    print(f'\n专家权重分析图已保存到: {save_path}')
+
+
+def _save_weight_data(print_gate, vein_gate, fusion_gate, labels, preds, save_dir, stage_keys):
     save_path = os.path.join(save_dir, 'expert_weights.npz')
-    np.savez(save_path,
-             print_enhancement=print_gate,
-             vein_enhancement=vein_gate,
-             fusion=fusion_gate,
-             labels=labels,
-             preds=preds,
-             enhancement_expert_names=ENHANCEMENT_EXPERT_NAMES,
-             fusion_expert_names=FUSION_EXPERT_NAMES)
+    data = {
+        'fusion': fusion_gate,
+        'labels': labels,
+        'preds': preds,
+        'enhancement_expert_names': ENHANCEMENT_EXPERT_NAMES,
+        'fusion_expert_names': FUSION_EXPERT_NAMES,
+        'stages': np.array(stage_keys),
+    }
+    for stage in stage_keys:
+        data[f'print_enhancement_stage{stage}'] = print_gate[stage]
+        data[f'vein_enhancement_stage{stage}'] = vein_gate[stage]
+
+    np.savez(save_path, **data)
     print(f'专家权重数据已保存到: {save_path}')
 
 

@@ -52,14 +52,20 @@ class Classifier(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.arc_margin = ArcMarginProduct(embed_dim, num_classes, s=scale, m=margin)
 
-    def forward(self, x, labels=None):
+    def extract_embedding(self, x):
         x = self.global_pool(x)
         x = x.view(x.size(0), -1)
         x = self.embedding(x)
         x = self.embedding_bn(x)
         x = self.dropout(x)
-        x = self.arc_margin(x, labels)
         return x
+
+    def forward(self, x, labels=None, return_embedding=False):
+        embedding = self.extract_embedding(x)
+        logits = self.arc_margin(embedding, labels)
+        if return_embedding:
+            return logits, embedding
+        return logits
 
 
 if __name__ == '__main__':
